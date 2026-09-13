@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Threading;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -25,6 +26,8 @@ public partial class App : Application
             System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.TextWriterTraceListener(Console.Error));
         }
 
+        InstallExceptionSafetyNet();
+
         var settings = SettingsService.Load();
         Core.Localization.Loc.Current.SetLanguage(settings.Language);
         RequestedThemeVariant = settings.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
@@ -39,6 +42,38 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Lưới an toàn: lỗi không bắt được trên luồng giao diện (ví dụ khi trích gói rất lớn) được ghi vào error.log và
+    /// đưa vào nhật ký thay vì làm sập ứng dụng; lỗi Task không quan sát cũng được ghi lại.
+    /// </summary>
+    private void InstallExceptionSafetyNet()
+    {
+        Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            CrashLog.Write(e.Exception);
+            DebugLog.Write("Unhandled UI exception: " + e.Exception);
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow.DataContext: MainViewModel viewModel })
+            {
+                viewModel.ReportUnhandledException(e.Exception);
+                e.Handled = true;
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashLog.Write(e.Exception);
+            e.SetObserved();
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception exception)
+            {
+                CrashLog.Write(exception);
+            }
+        };
     }
 
     public static void ApplyTheme(bool dark)

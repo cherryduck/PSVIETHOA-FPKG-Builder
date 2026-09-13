@@ -1307,6 +1307,17 @@ public sealed partial class ExtractionViewModel : ObservableObject
                 parts.Add(Loc.F("Extract.PartApp", Formatters.Count(result.FileCount), Formatters.Size(result.TotalBytes)));
                 ProgressPercent = 100;
                 PercentText = "100%";
+
+                // Bố cục Sony: ghép param.json / icon0.png / playgo… từ CNT vào sce_sys của cây ứng dụng để dùng lại làm nguồn tạo gói.
+                if (CanExport)
+                {
+                    await RunStepAsync(Loc.T("Extract.StepSceSys"), () =>
+                    {
+                        var files = PackageReader.ExportSceSys(packagePath, folder, passcode, token);
+                        parts.Add(Loc.F("Extract.PartSceSys", files.Count));
+                        Log(LogLevel.Info, Loc.F("Extract.LogSceSys", files.Count, Path.Combine(folder, "sce_sys")));
+                    }, token);
+                }
             }
 
             if (doOuter)

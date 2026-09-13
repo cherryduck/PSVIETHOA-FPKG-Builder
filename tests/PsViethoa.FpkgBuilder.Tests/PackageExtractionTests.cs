@@ -355,6 +355,52 @@ public sealed class PackageExtractionTests : IClassFixture<PackageExtractionFixt
     }
 
     [Fact]
+    public void ExportSceSys_ProducesRebuildableSonyLayout()
+    {
+        var package = _fixture.GetPackage(OuterImageMode.PlaintextNoAuth);
+        if (package == null)
+        {
+            return;
+        }
+
+        var folder = TempFolder("sony");
+        using (var reader = PackageReader.Open(package, Passcode, null, CancellationToken.None, null))
+        {
+            reader.ExtractAll(folder, null, CancellationToken.None);
+        }
+
+        var merged = PackageReader.ExportSceSys(package, folder, Passcode, CancellationToken.None);
+        Assert.Contains("sce_sys/param.json", merged);
+        Assert.Contains("sce_sys/icon0.png", merged);
+        Assert.DoesNotContain(merged, f => Path.GetFileName(f).StartsWith('.'));
+        Assert.DoesNotContain(merged, f => Path.GetFileName(f).StartsWith("entry-", StringComparison.Ordinal));
+        Assert.False(Directory.Exists(Path.Combine(folder, "cnt")));
+
+        // Thư mục kết quả phải là nguồn hợp lệ để tạo gói lại: có sce_sys/param.json với đúng Content ID.
+        Assert.Equal(SourceKind.Folder, SourceLocator.Detect(folder));
+        var metadata = MetadataReader.Read(folder, CancellationToken.None);
+        Assert.True(metadata.HasParamJson);
+        Assert.Equal(PackageExtractionFixture.ContentId, metadata.ContentId);
+        Assert.True(File.Exists(Path.Combine(folder, "eboot.bin")));
+        Assert.Empty(BuildPreparer.Validate(new BuildRequest
+        {
+            SourcePath = folder,
+            OutputFolder = TempFolder("sony-out"),
+            ContentId = metadata.ContentId!,
+            KrakenBackend = KrakenBackendKind.BuiltIn,
+        }));
+    }
+
+    [Theory]
+    [InlineData("param.json", true)]
+    [InlineData("trophy2/trophy00.ucp", true)]
+    [InlineData(".digests", false)]
+    [InlineData("uds/.hidden", false)]
+    [InlineData("entry-0000040a.bin", false)]
+    public void IsSceSysPayload_FiltersInternalCntTables(string relative, bool expected) =>
+        Assert.Equal(expected, PackageReader.IsSceSysPayload(relative));
+
+    [Fact]
     public void ExportCntEntries_YieldsOriginalParamJson()
     {
         var package = _fixture.GetPackage(OuterImageMode.PlaintextNoAuth);

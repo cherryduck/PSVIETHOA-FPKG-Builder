@@ -437,6 +437,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(FooterStatusText));
 
+    /// <summary>Lỗi không bắt được trên luồng giao diện: ghi vào nhật ký và thanh trạng thái thay vì để ứng dụng sập.</summary>
+    public void ReportUnhandledException(Exception exception)
+    {
+        var message = Loc.F("App.UnhandledError", exception.Message);
+        Log(LogLevel.Error, message + Environment.NewLine + exception);
+        StatusText = message;
+    }
+
     /// <summary>Esc: huỷ tác vụ đang chạy của chế độ hiện tại (tạo gói hoặc giải nén).</summary>
     [RelayCommand]
     private void CancelActive()

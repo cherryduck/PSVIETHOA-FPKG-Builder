@@ -364,6 +364,55 @@ public sealed class PackageReader : IDisposable
         return ExportWithStaging(outputFolder, "psviethoa-cnt-", cancellationToken, target => ProsperoPackageArchive.ExtractCntEntries(packagePath, target, passcode, includeEncrypted: true));
     }
 
+    /// <summary>
+    /// Ghép các tệp sce_sys nằm trong CNT (param.json, icon0.png, pic0.png, playgo-*.dat, trophy2/…, uds/…) vào
+    /// &lt;thư mục đích&gt;/sce_sys để cây ứng dụng trích ra đúng bố cục Sony và dùng lại được làm nguồn tạo gói FPKG.
+    /// Các bảng nội bộ của CNT (.digests, .entry_keys, .metas… và entry-XXXXXXXX.bin) bị bỏ qua.
+    /// Trả về danh sách đường dẫn tương đối (dùng '/') đã ghi.
+    /// </summary>
+    public static IReadOnlyList<string> ExportSceSys(string packagePath, string outputFolder, string passcode, CancellationToken cancellationToken)
+    {
+        var staging = ExportCntEntriesToTemp(packagePath, passcode, cancellationToken);
+        try
+        {
+            var sceSys = Path.Combine(Path.GetFullPath(outputFolder), "sce_sys");
+            var written = new List<string>();
+            foreach (var file in Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relative = Path.GetRelativePath(staging, file);
+                if (!IsSceSysPayload(relative))
+                {
+                    continue;
+                }
+
+                var target = Path.Combine(sceSys, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);
+                written.Add("sce_sys/" + relative.Replace(Path.DirectorySeparatorChar, '/'));
+            }
+
+            return written;
+        }
+        finally
+        {
+            BuildEngine.TryDeleteDirectory(staging);
+        }
+    }
+
+    /// <summary>Tệp CNT nào là dữ liệu sce_sys thật (không phải bảng nội bộ của container).</summary>
+    public static bool IsSceSysPayload(string relativePath)
+    {
+        var name = Path.GetFileName(relativePath);
+        if (name.Length == 0 || name[0] == '.')
+        {
+            return false;
+        }
+
+        // entry-0000040a.bin: mục CNT không có tên chuẩn → giữ nguyên trong cnt/ (xuất thô), không đưa vào sce_sys.
+        return !System.Text.RegularExpressions.Regex.IsMatch(name, "^entry-[0-9a-fA-F]{8}\\.bin$");
+    }
+
     /// <summary>Xuất các mục SI (supplement: naps_meta_*.dat, playgo-chunk.crc…) nếu gói có; trả về danh sách rỗng nếu không có.</summary>
     public static IReadOnlyList<string> ExportSiEntries(string packagePath, string outputFolder, CancellationToken cancellationToken)
     {

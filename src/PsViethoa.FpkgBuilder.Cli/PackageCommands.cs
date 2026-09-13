@@ -66,7 +66,7 @@ internal static class PackageCommands
         return 0;
     }
 
-    /// <summary>pkg-extract &lt;tệp.pkg&gt; --output &lt;dir&gt; [--include glob]… [--cnt] [--passcode X] [--threads N] [--temp dir]</summary>
+    /// <summary>pkg-extract &lt;tệp.pkg&gt; --output &lt;dir&gt; [--include glob]… [--cnt] [--no-sce-sys] [--passcode X] [--threads N] [--temp dir]</summary>
     public static int Extract(Arguments arguments)
     {
         if (!TryGetPackage(arguments, out var path))
@@ -138,6 +138,12 @@ internal static class PackageCommands
         }
 
         Console.WriteLine(Loc.F("Cli.PkgExtracted", Formatters.Count(result.FileCount), Formatters.SizeWithBytes(result.TotalBytes), Formatters.Duration(result.Elapsed), result.OutputFolder));
+        if (!arguments.Has("no-sce-sys") && info.Cnt != null)
+        {
+            // Bố cục Sony: cây ứng dụng + sce_sys/param.json, icon0.png, playgo… từ CNT → dùng lại được làm nguồn tạo gói.
+            var sceSys = PackageReader.ExportSceSys(path, outputRoot, passcode, cancellation.Token);
+            Console.WriteLine(Loc.F("Cli.PkgSceSysExported", sceSys.Count, Path.Combine(outputRoot, "sce_sys")));
+        }
         return 0;
     }
 

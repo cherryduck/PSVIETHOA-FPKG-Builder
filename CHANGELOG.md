@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1 — 2026-09-14
+
+- **Extracted app trees are now in Sony layout.** The "original app tree" option merges param.json, icon0.png, pic0.png and the playgo files from the CNT into `sce_sys/`, so the output folder can be used directly as a source to build an FPKG again (CLI: `pkg-extract` does the same; `--no-sce-sys` skips it, `--cnt` still exports the raw CNT tables to `cnt/`).
+- Unhandled exceptions on the UI thread are logged to `error.log` and shown in the build log instead of terminating the app; unobserved task exceptions are logged.
+- Verified on a 36 GB / 166,707-file package (ASTRO BOT): info 0.16 s, listing 3.8 s, extraction ~200 MB/s.
+
 ## 2.1.0 — 2026-09-13
 
 Updated to the latest **LibProsperoPkg** (from `fpkg-gui 0.6.2`) and exposed its new capabilities.

@@ -1,0 +1,128 @@
+using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using PsViethoa.FpkgBuilder.Core.Localization;
+
+namespace PsViethoa.FpkgBuilder.Core.Services;
+
+/// <summary>Kết quả kiểm tra bản mới trên GitHub Releases.</summary>
+public sealed record UpdateInfo(
+    string LatestVersion,
+    string TagName,
+    string ReleaseUrl,
+    string? AssetName,
+    string? AssetUrl,
+    long AssetSize,
+    DateTimeOffset? PublishedAt,
+    bool IsNewer);
+
+/// <summary>
+/// Kiểm tra bản mới qua GitHub API (releases/latest). Không tự tải hay cài — chỉ báo phiên bản mới và đường dẫn tải
+/// cho đúng nền tảng (macOS Apple Silicon / Intel, Windows x64).
+/// </summary>
+public static class UpdateChecker
+{
+    public const string Repository = "thanhsondev/PSVIETHOA-FPKG-Builder";
+    public const string ReleasesPage = "https://github.com/" + Repository + "/releases";
+    public const string LatestApi = "https://api.github.com/repos/" + Repository + "/releases/latest";
+
+    private static readonly HttpClient Http = CreateClient();
+
+    private static HttpClient CreateClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("PSVIETHOA-FPKG-Builder", "2"));
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        return client;
+    }
+
+    /// <summary>Đoạn tên tệp phát hành cho nền tảng hiện tại (khớp tên zip trên Releases).</summary>
+    public static string PlatformAssetHint()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "macOS-AppleSilicon" : "macOS-Intel";
+        }
+
+        return OperatingSystem.IsWindows() ? "Windows-x64" : string.Empty;
+    }
+
+    public static async Task<UpdateInfo> CheckAsync(string currentVersion, string platformAssetHint, CancellationToken cancellationToken)
+    {
+        string json;
+        try
+        {
+            json = await Http.GetStringAsync(LatestApi, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException(Loc.F("Update.Network", ex.Message), ex);
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(Loc.F("Update.Network", Loc.T("Update.Timeout")), ex);
+        }
+
+        return Parse(json, currentVersion, platformAssetHint);
+    }
+
+    /// <summary>Đọc JSON của GitHub releases/latest (tách ra để kiểm thử không cần mạng).</summary>
+    public static UpdateInfo Parse(string json, string currentVersion, string platformAssetHint)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("tag_name", out var tagElement) || tagElement.ValueKind != JsonValueKind.String)
+        {
+            throw new InvalidDataException(Loc.T("Update.BadResponse"));
+        }
+
+        var tag = tagElement.GetString() ?? string.Empty;
+        var latest = NormalizeVersion(tag);
+        var url = root.TryGetProperty("html_url", out var htmlUrl) && htmlUrl.ValueKind == JsonValueKind.String ? htmlUrl.GetString()! : ReleasesPage;
+        DateTimeOffset? published = root.TryGetProperty("published_at", out var publishedAt) && publishedAt.ValueKind == JsonValueKind.String &&
+                                    DateTimeOffset.TryParse(publishedAt.GetString(), out var stamp)
+            ? stamp
+            : null;
+
+        string? assetName = null, assetUrl = null;
+        long assetSize = 0;
+        if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = asset.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? string.Empty : string.Empty;
+                if (platformAssetHint.Length == 0 || !name.Contains(platformAssetHint, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                assetName = name;
+                assetUrl = asset.TryGetProperty("browser_download_url", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null;
+                assetSize = asset.TryGetProperty("size", out var sz) && sz.ValueKind == JsonValueKind.Number && sz.TryGetInt64(out var value) ? value : 0;
+                break;
+            }
+        }
+
+        return new UpdateInfo(latest, tag, url, assetName, assetUrl, assetSize, published, IsNewer(latest, currentVersion));
+    }
+
+    /// <summary>"v2.1.4" / "2.1.4+abc" → "2.1.4".</summary>
+    public static string NormalizeVersion(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.StartsWith('v') || trimmed.StartsWith('V'))
+        {
+            trimmed = trimmed[1..];
+        }
+
+        var cut = trimmed.IndexOfAny(['+', '-', ' ']);
+        return cut >= 0 ? trimmed[..cut] : trimmed;
+    }
+
+    public static bool IsNewer(string latest, string current)
+    {
+        return Version.TryParse(NormalizeVersion(latest), out var a) && Version.TryParse(NormalizeVersion(current), out var b) && Pad(a) > Pad(b);
+    }
+
+    private static Version Pad(Version v) => new(v.Major, Math.Max(0, v.Minor), Math.Max(0, v.Build), Math.Max(0, v.Revision));
+}

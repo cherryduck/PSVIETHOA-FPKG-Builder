@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.4 — 2026-09-14
+
+- **Check for updates.** The app checks GitHub Releases every time it starts (can be turned off in the advanced options) and shows a green "New version vX.Y.Z" badge that opens the download, puts a dot on the ↻ button and asks whether to download it on every start; the ↻ button checks manually; CLI `fpkg-cli check-update`.
+- **`.ffpfsc` sources.** A `.ffpfsc` file is a PS5 PFS container (superblock v2, 64 KiB blocks) holding one PFSC-compressed exFAT image of the game; the app now opens it like an `.exfat` image — the exFAT reader sits on top of the library's PFSC decompression (~900 MB/s, no intermediate file), metadata / icon / size / junk detection work directly, and building extracts the app folder to the temp folder (mounting is not possible). GUI: separate ".exfat image" and ".ffpfsc file" buttons plus drag & drop; CLI: `inspect` / `build --source x.ffpfsc`.
+
 ## 2.1.3 — 2026-09-14
 
 - Version badge next to the app name in the header and in the window title.

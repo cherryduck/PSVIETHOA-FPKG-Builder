@@ -140,7 +140,7 @@ public static class BuildPreparer
                     errors.Add(new ValidationError(FieldSource, Loc.T("Val.ExFatInvalid") + " " + ex.Message));
                 }
 
-                if (normalized.ExFat == ExFatStrategy.Mount && !ExFatMounter.IsAvailable)
+                if (normalized.ExFat == ExFatStrategy.Mount && !ExFatMounter.IsAvailable && !SourceLocator.HasPfsContainerExtension(normalized.SourcePath) && !PfsContainer.IsContainer(normalized.SourcePath))
                 {
                     errors.Add(new ValidationError(FieldExFat, Loc.T("Val.ExFatMountUnsupported")));
                 }

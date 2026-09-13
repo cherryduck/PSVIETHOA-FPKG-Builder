@@ -54,6 +54,9 @@ public static class MetadataReader
         var metadata = new SourceMetadata { IsExFat = true };
         using var image = ExFatImage.Open(imagePath);
         metadata.VolumeLabel = image.VolumeLabel;
+        metadata.IsPfsContainer = image.IsPfsContainer;
+        metadata.ContainerEntryName = image.ContainerEntryName;
+        metadata.ContainerStoredLength = image.ContainerStoredLength;
 
         var appRoot = SourceLocator.FindAppRoot(image);
         if (appRoot == null)

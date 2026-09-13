@@ -140,6 +140,7 @@ internal static class CommandLine
                 "verify" => Verify(arguments),
                 "clean-junk" => CleanJunk(arguments),
                 "info" => Info(),
+                "check-update" => CheckUpdate(),
                 "pkg-info" => PackageCommands.Info(arguments),
                 "pkg-list" => PackageCommands.List(arguments),
                 "pkg-extract" => PackageCommands.Extract(arguments),
@@ -181,6 +182,25 @@ internal static class CommandLine
         return 1;
     }
 
+    /// <summary>check-update: hỏi GitHub Releases xem có bản mới hơn phiên bản đang chạy không.</summary>
+    private static int CheckUpdate()
+    {
+        try
+        {
+            var current = typeof(CommandLine).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+            var info = UpdateChecker.CheckAsync(current, UpdateChecker.PlatformAssetHint(), CancellationToken.None).GetAwaiter().GetResult();
+            Console.WriteLine(info.IsNewer
+                ? Loc.F("Update.CliAvailable", info.LatestVersion, current, info.AssetUrl ?? info.ReleaseUrl)
+                : Loc.F("Update.UpToDate", current, info.LatestVersion));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(Loc.F("Update.Failed", ex.Message));
+            return 2;
+        }
+    }
+
     private static int Info()
     {
         Console.WriteLine("PSVIETHOA FPKG Builder CLI");
@@ -219,7 +239,9 @@ internal static class CommandLine
         }
         else if (metadata.IsExFat)
         {
-            Console.WriteLine(Loc.F("Cli.SourceExFat", Path.GetFullPath(source), metadata.VolumeLabel ?? "—", metadata.AppRootInImage));
+            Console.WriteLine(metadata.IsPfsContainer
+                ? Loc.F("Cli.SourcePfs", Path.GetFullPath(source), metadata.ContainerEntryName ?? "—", metadata.ContainerStoredLength is { } stored ? Formatters.Size(stored) : "—", metadata.VolumeLabel ?? "—", metadata.AppRootInImage)
+                : Loc.F("Cli.SourceExFat", Path.GetFullPath(source), metadata.VolumeLabel ?? "—", metadata.AppRootInImage));
         }
         else
         {

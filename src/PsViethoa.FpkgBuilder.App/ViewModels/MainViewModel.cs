@@ -90,6 +90,7 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateHints();
         RefreshStatusText();
         PhaseText = Loc.T(_phaseKey);
+        StartupUpdateCheck();
     }
 
     private void OnSourceDebounceTick(object? sender, EventArgs e)
@@ -109,6 +110,103 @@ public sealed partial class MainViewModel : ObservableObject
     public int ProcessorCount { get; }
 
     public string AppVersionText => Loc.F("App.VersionLabel", AppInfo.Version, AppInfo.PlatformLabel);
+
+    // ===================== Kiểm tra cập nhật =====================
+
+    [ObservableProperty] private bool _updateAvailable;
+    [ObservableProperty] private string _updateLabel = string.Empty;
+    [ObservableProperty] private bool _isCheckingUpdate;
+    [ObservableProperty] private bool _checkUpdatesOnStartup = true;
+    private string? _updateUrl;
+
+    /// <summary>Chữ trên huy hiệu "Có bản mới vX.Y.Z" ở header.</summary>
+    public string UpdateBannerText => Loc.F("Update.Banner", UpdateLabel);
+
+    partial void OnUpdateLabelChanged(string value) => OnPropertyChanged(nameof(UpdateBannerText));
+
+    partial void OnCheckUpdatesOnStartupChanged(bool value) => _settings.CheckUpdatesOnStartup = value;
+
+    /// <summary>Nút kiểm tra cập nhật ở header: hỏi GitHub Releases và báo kết quả bằng hộp thoại.</summary>
+    [RelayCommand]
+    private Task CheckUpdateAsync() => CheckUpdatesCoreAsync(manual: true);
+
+    /// <summary>Mở trang tải bản mới (tệp zip đúng nền tảng nếu có, không thì trang release).</summary>
+    [RelayCommand]
+    private async Task OpenUpdateAsync()
+    {
+        var url = _updateUrl ?? UpdateChecker.ReleasesPage;
+        if (!await _dialogs.OpenUriAsync(url))
+        {
+            await _dialogs.ShowInfoAsync(Loc.T("Update.Title"), url);
+        }
+    }
+
+    private async Task CheckUpdatesCoreAsync(bool manual)
+    {
+        if (IsCheckingUpdate)
+        {
+            return;
+        }
+
+        IsCheckingUpdate = true;
+        try
+        {
+            var info = await UpdateChecker.CheckAsync(AppInfo.Version, UpdateChecker.PlatformAssetHint(), CancellationToken.None);
+            _settings.LastUpdateCheckUtc = DateTime.UtcNow;
+            if (info.IsNewer)
+            {
+                UpdateLabel = "v" + info.LatestVersion;
+                _updateUrl = info.AssetUrl ?? info.ReleaseUrl;
+                UpdateAvailable = true;
+                Log(LogLevel.Info, Loc.F("Update.LogAvailable", info.LatestVersion, AppInfo.Version, info.ReleaseUrl));
+
+                // Luôn hỏi "có muốn tải không" mỗi lần mở ứng dụng khi còn bản mới (theo yêu cầu của chủ dự án); "Để sau" chỉ đóng hộp thoại.
+                var open = await _dialogs.ConfirmAsync(
+                    Loc.T("Update.Title"),
+                    Loc.F("Update.AvailableBody", info.LatestVersion, AppInfo.Version, info.AssetName ?? info.ReleaseUrl),
+                    Loc.T("Update.Download"),
+                    Loc.T("Update.Later"));
+                if (open)
+                {
+                    await OpenUpdateAsync();
+                }
+            }
+            else
+            {
+                UpdateAvailable = false;
+                if (manual)
+                {
+                    await _dialogs.ShowInfoAsync(Loc.T("Update.Title"), Loc.F("Update.UpToDate", AppInfo.Version, info.LatestVersion));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                await _dialogs.ShowErrorAsync(Loc.T("Update.Title"), Loc.F("Update.Failed", ex.Message));
+            }
+            else
+            {
+                DebugLog.Write("Update check failed: " + ex.Message);
+            }
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    /// <summary>Kiểm tra mỗi lần khởi động (nếu bật): có bản mới thì hiện huy hiệu, chấm báo trên nút ↻ và hỏi có muốn tải không.</summary>
+    private void StartupUpdateCheck()
+    {
+        if (!CheckUpdatesOnStartup)
+        {
+            return;
+        }
+
+        _ = CheckUpdatesCoreAsync(manual: false);
+    }
 
     /// <summary>Phiên bản ngắn hiện cạnh tên ứng dụng ở header ("v2.1.3").</summary>
     public string HeaderVersion => "v" + AppInfo.Version;
@@ -403,6 +501,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _hasParamJson;
     [ObservableProperty] private bool _metadataWarning;
     [ObservableProperty] private bool _isExFatSource;
+
+    /// <summary>Ảnh exFAT nằm trong container .ffpfsc (chỉ giải nén được, không gắn).</summary>
+    [ObservableProperty] private bool _isPfsContainerSource;
+
+    /// <summary>Ảnh .exfat thuần (có thể gắn trên macOS) — chỉ khi đó mới hiện tuỳ chọn cách xử lý ảnh.</summary>
+    public bool IsPlainExFatSource => IsExFatSource && !IsPfsContainerSource;
+
+    partial void OnIsPfsContainerSourceChanged(bool value) => OnPropertyChanged(nameof(IsPlainExFatSource));
+
+    partial void OnIsExFatSourceChanged(bool value) => OnPropertyChanged(nameof(IsPlainExFatSource));
     [ObservableProperty] private string _metaExFatChip = string.Empty;
     [ObservableProperty] private string _metaExFatRoot = string.Empty;
     [ObservableProperty] private bool _isGp5Source;
@@ -768,6 +876,7 @@ public sealed partial class MainViewModel : ObservableObject
             SourcePath = s.SourcePath;
             OutputFolder = s.OutputFolder;
             AutoOutputFolder = s.OutputFolderAuto;
+            CheckUpdatesOnStartup = s.CheckUpdatesOnStartup;
             var defaultTemporary = string.IsNullOrWhiteSpace(s.OutputFolder) ? string.Empty : BuildPreparer.SuggestTemporaryFolder(s.OutputFolder);
             var keepSaved = !string.IsNullOrWhiteSpace(s.TemporaryFolder) &&
                             (string.IsNullOrWhiteSpace(s.OutputFolder) || DiskSpaceAdvisor.IsSameVolume(s.TemporaryFolder, s.OutputFolder));
@@ -823,6 +932,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.SourcePath = SourcePath.Trim();
         s.OutputFolder = OutputFolder.Trim();
         s.OutputFolderAuto = AutoOutputFolder;
+        s.CheckUpdatesOnStartup = CheckUpdatesOnStartup;
         s.TemporaryFolder = TemporaryFolder.Trim();
         s.ContentId = ContentId.Trim();
         s.Title = Title.Trim();
@@ -902,6 +1012,23 @@ public sealed partial class MainViewModel : ObservableObject
         if (folder != null)
         {
             SetSource(folder);
+        }
+    }
+
+    /// <summary>Nút "Tệp .ffpfsc": chọn container PFS chứa ảnh exFAT nén.</summary>
+    [RelayCommand]
+    private async Task BrowseFfpfscAsync()
+    {
+        var current = SourcePath.Trim();
+        var initial = File.Exists(current) ? Path.GetDirectoryName(current) : Directory.Exists(current) ? current : null;
+        var file = await _dialogs.PickFileAsync(
+            Loc.T("Pick.Ffpfsc"),
+            initial,
+            new FilePickerFileType(Loc.T("Pick.FfpfscFilter")) { Patterns = ["*.ffpfsc"] },
+            new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] });
+        if (file != null)
+        {
+            SetSource(file);
         }
     }
 
@@ -1200,6 +1327,7 @@ public sealed partial class MainViewModel : ObservableObject
         HasParamJson = false;
         MetadataWarning = false;
         IsExFatSource = false;
+        IsPfsContainerSource = false;
         MetaExFatChip = string.Empty;
         MetaExFatRoot = string.Empty;
         IsGp5Source = false;
@@ -1231,7 +1359,11 @@ public sealed partial class MainViewModel : ObservableObject
         HasSource = true;
         HasEboot = metadata.HasEboot;
         IsExFatSource = metadata.IsExFat;
-        MetaExFatChip = metadata.IsExFat ? Loc.F("Meta.ExFatChip", string.IsNullOrWhiteSpace(metadata.VolumeLabel) ? "—" : metadata.VolumeLabel) : string.Empty;
+        IsPfsContainerSource = metadata.IsPfsContainer;
+        var volumeLabel = string.IsNullOrWhiteSpace(metadata.VolumeLabel) ? "—" : metadata.VolumeLabel;
+        MetaExFatChip = metadata.IsPfsContainer
+            ? Loc.F("Meta.PfsChip", volumeLabel, metadata.ContainerStoredLength is { } stored ? Formatters.Size(stored) : "—")
+            : metadata.IsExFat ? Loc.F("Meta.ExFatChip", volumeLabel) : string.Empty;
         MetaExFatRoot = metadata.IsExFat
             ? (string.IsNullOrEmpty(metadata.AppRootInImage) ? Loc.T("Meta.ExFatRootTop") : Loc.F("Meta.ExFatRoot", metadata.AppRootInImage))
             : string.Empty;
@@ -1310,7 +1442,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private bool WillExtractExFat =>
-        IsExFatSource && (ExFatIndex == 2 || !ExFatMounter.IsAvailable || (ExFatIndex == 0 && JunkCount > 0));
+        IsExFatSource && (IsPfsContainerSource || ExFatIndex == 2 || !ExFatMounter.IsAvailable || (ExFatIndex == 0 && JunkCount > 0));
 
     private void RefreshDiskInfo()
     {

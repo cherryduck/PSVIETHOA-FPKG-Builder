@@ -10,6 +10,14 @@ public sealed class SourceMetadata
 
     public string? VolumeLabel { get; set; }
 
+    /// <summary>Ảnh exFAT nằm trong container PFS (.ffpfsc).</summary>
+    public bool IsPfsContainer { get; set; }
+
+    /// <summary>Tên tệp exFAT bên trong container và kích thước lưu trữ (đã nén).</summary>
+    public string? ContainerEntryName { get; set; }
+
+    public long? ContainerStoredLength { get; set; }
+
     /// <summary>Đường dẫn thư mục ứng dụng bên trong ảnh ("" = gốc).</summary>
     public string AppRootInImage { get; set; } = string.Empty;
 

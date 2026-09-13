@@ -87,6 +87,14 @@
                                 <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="{Binding AppVersionText}">
                                     <TextBlock Text="{Binding HeaderVersion}" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
                                 </Border>
+                                <Button Classes="link" IsVisible="{Binding UpdateAvailable}" Command="{Binding OpenUpdateCommand}" ToolTip.Tip="{l:T Update.BannerTip}" Padding="0" VerticalAlignment="Center">
+                                    <Border Background="#2A22C55E" BorderBrush="#6622C55E" BorderThickness="1" CornerRadius="6" Padding="7,1">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <PathIcon Classes="sm" Data="{StaticResource IconUpdate}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding UpdateBannerText}" FontSize="11.5" FontWeight="SemiBold" Foreground="#4ADE80" />
+                                        </StackPanel>
+                                    </Border>
+                                </Button>
                             </StackPanel>
                             <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" TextTrimming="CharacterEllipsis" />
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
@@ -115,6 +123,13 @@
                                 <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="EN" IsChecked="{Binding LanguageEn, Mode=TwoWay}" />
                             </StackPanel>
                         </Border>
+                        <Button Classes="header icon" Command="{Binding CheckUpdateCommand}" IsEnabled="{Binding !IsCheckingUpdate}" ToolTip.Tip="{l:T Update.Tip}" AutomationProperties.Name="{l:T Update.Tip}">
+                            <Panel>
+                                <PathIcon Data="{StaticResource IconUpdate}" />
+                                <!-- Chấm báo có bản mới -->
+                                <Ellipse Width="9" Height="9" Fill="#4ADE80" Stroke="#0F172A" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-4,0" IsVisible="{Binding UpdateAvailable}" />
+                            </Panel>
+                        </Button>
                         <Button Classes="header icon" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="{Binding ThemeTooltip}">
                             <Panel>
                                 <PathIcon Data="{StaticResource IconSun}" IsVisible="{Binding IsDarkTheme}" />
@@ -174,7 +189,7 @@
                                     <StackPanel Spacing="8">
                                         <TextBox Name="SourceBox" Text="{Binding SourcePath, Mode=TwoWay}" Classes.error="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}"
                                                  Watermark="{l:T Step1.SourceWatermark}" ToolTip.Tip="{Binding SourcePath}" />
-                                        <Grid ColumnDefinitions="*,8,*,8,*">
+                                        <Grid ColumnDefinitions="*,8,*,8,*,8,*">
                                             <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseSourceCommand}" ToolTip.Tip="{l:T Pick.Source}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconFolderOpen}" />
@@ -187,7 +202,13 @@
                                                     <TextBlock Text="{l:T Step1.PickExFat}" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button Grid.Column="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseGp5Command}" ToolTip.Tip="{l:T Step1.PickGp5Tip}">
+                                            <Button Grid.Column="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseFfpfscCommand}" ToolTip.Tip="{l:T Step1.PickFfpfscTip}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconArchive}" />
+                                                    <TextBlock Text="{l:T Step1.PickFfpfsc}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Grid.Column="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseGp5Command}" ToolTip.Tip="{l:T Step1.PickGp5Tip}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconFile}" />
                                                     <TextBlock Text="{l:T Step1.PickGp5}" />
@@ -417,7 +438,11 @@
                                 <StackPanel Spacing="14" IsVisible="{Binding AdvancedExpanded}" Margin="0,2,0,0">
                                     <Border Classes="divider" Margin="0" />
 
-                                    <StackPanel Classes="field" IsVisible="{Binding IsExFatSource}">
+                                    <StackPanel Classes="field" IsVisible="{Binding IsPfsContainerSource}">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.ExFat}" />
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.PfsContainerHint}" />
+                                    </StackPanel>
+                                    <StackPanel Classes="field" IsVisible="{Binding IsPlainExFatSource}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.ExFat}" />
                                         <ComboBox Name="ExFatCombo" ItemsSource="{Binding ExFatOptions}" SelectedIndex="{Binding ExFatIndex, Mode=TwoWay}" />
                                         <TextBlock Classes="hint" Text="{l:T Advanced.ExFatHint}" />
@@ -567,6 +592,13 @@
                                             <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{l:T Advanced.Sleep}" />
                                                 <TextBlock Classes="xs muted" Text="{l:T Advanced.SleepHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding CheckUpdatesOnStartup, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.CheckUpdates}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.CheckUpdatesHint}" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>

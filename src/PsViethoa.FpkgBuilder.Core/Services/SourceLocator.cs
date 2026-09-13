@@ -11,9 +11,12 @@ public enum SourceKind
 }
 
 /// <summary>Mô tả nguồn đã chọn: thư mục, ảnh exFAT (kèm thư mục ứng dụng bên trong ảnh) hoặc tệp dự án GP5.</summary>
-public sealed record SourceInfo(SourceKind Kind, string Path, string AppRootInImage, string? VolumeLabel)
+public sealed record SourceInfo(SourceKind Kind, string Path, string AppRootInImage, string? VolumeLabel, bool IsPfsContainer = false)
 {
     public bool IsExFat => Kind == SourceKind.ExFatImage;
+
+    /// <summary>Ảnh exFAT nằm trong container .ffpfsc: chỉ giải nén được, không gắn (mount) được.</summary>
+    public bool CanMount => IsExFat && !IsPfsContainer;
 
     public bool IsGp5 => Kind == SourceKind.Gp5Project;
 
@@ -52,7 +55,7 @@ public static class SourceLocator
             return SourceKind.Gp5Project;
         }
 
-        if (HasExFatExtension(path) || ExFatImage.IsExFatFile(path))
+        if (HasExFatExtension(path) || HasPfsContainerExtension(path) || ExFatImage.IsExFatFile(path))
         {
             return SourceKind.ExFatImage;
         }
@@ -62,6 +65,13 @@ public static class SourceLocator
 
     public static bool HasExFatExtension(string path) =>
         string.Equals(Path.GetExtension(path), ExFatImage.Extension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Đuôi .ffpfsc — container PFS chứa ảnh exFAT nén.</summary>
+    public static bool HasPfsContainerExtension(string path) =>
+        string.Equals(Path.GetExtension(path), PfsContainer.Extension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Tệp ảnh (.exfat hoặc .ffpfsc) theo đuôi, không cần mở tệp.</summary>
+    public static bool HasImageExtension(string path) => HasExFatExtension(path) || HasPfsContainerExtension(path);
 
     public static bool HasGp5Extension(string path) =>
         string.Equals(Path.GetExtension(path), Gp5Extension, StringComparison.OrdinalIgnoreCase);
@@ -82,7 +92,7 @@ public static class SourceLocator
             {
                 using var image = ExFatImage.Open(path);
                 var appRoot = FindAppRoot(image) ?? throw new InvalidDataException(Localization.Loc.T("Val.ExFatNoApp"));
-                return new SourceInfo(SourceKind.ExFatImage, Path.GetFullPath(path), appRoot.Path.TrimStart('/'), image.VolumeLabel);
+                return new SourceInfo(SourceKind.ExFatImage, Path.GetFullPath(path), appRoot.Path.TrimStart('/'), image.VolumeLabel, image.IsPfsContainer);
             }
             default:
                 throw new FileNotFoundException(Localization.Loc.T("Val.SourceMissing"), path);

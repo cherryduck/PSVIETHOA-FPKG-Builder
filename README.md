@@ -39,7 +39,10 @@ Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. 
 
 > The result is a **debug FPKG** (FIH image, signed byte `0x00`) — it installs only on a **PS5 with debug mode enabled**.
 
-## What's new in 2.1.0
+## What's new in 2.1.x
+
+- **2.1.4 — `.ffpfsc` sources**: a PS5 PFS container holding a PFSC‑compressed exFAT dump of a game opens like an `.exfat` image (decompressed on the fly, no intermediate file; separate **.ffpfsc file** button, drag & drop, `fpkg-cli inspect / build --source x.ffpfsc`). **Check for updates**: green header badge when a newer release exists (checked at every start, ↻ button, `fpkg-cli check-update`).
+- **2.1.1 – 2.1.3**: Sony‑layout extraction (rebuildable `sce_sys`), automatic output folders, "Standard" preset naming, version badge, clear history, UI safety net.
 
 - **Updated LibProsperoPkg engine** — overlapping reads / compression / writes with fewer intermediate copies, block deduplication and an in‑build compression cache, improved built‑in Kraken (especially levels 8–9), automatic fallback to built‑in Kraken when Oodle is unavailable, file‑handling and cancellation fixes, and existing packages are preserved if a rebuild fails.
 - **PFS v2 / v3 selection**, configurable **Kraken block size** (128–256 KiB), **pre‑compression shuffle patterns** and **automatic shuffle analysis** (PFS v3 texture optimisation through permutation selection — very slow, fully effective only at Kraken level 9), optional **physical layout optimisation**. PFS v3 packages need **PS5 firmware 7.00 or newer**; the app warns about it.
@@ -55,7 +58,7 @@ See [CHANGELOG.md](CHANGELOG.md) for details.
 
 | Area | Details |
 |---|---|
-| **Sources** | An app folder (containing `sce_sys`) **or an exFAT disk image (`.exfat`)** — bare volume, MBR, or GPT. A pure‑.NET exFAT reader reads `param.json` / icon / size straight from the image. On macOS the image is **mounted read‑only via `hdiutil` (no copy)**; on Windows, or when the image contains junk files, it is **extracted to the temp folder** (skipping `.DS_Store`, `._*`, `Thumbs.db`…) and cleaned up afterwards. **Or a GP5 project (`.gp5`)** from Publishing Tools / fpkg‑gui — Normal layout (`rootdir` + exclude masks) or Flat layout (explicit file list); relative paths resolve from the project's folder, the metadata card shows the layout and project root, and only the files the project lists are counted. |
+| **Sources** | An app folder (containing `sce_sys`) **or an exFAT disk image (`.exfat`)** — bare volume, MBR, or GPT — **or a `.ffpfsc` container** (a PS5 PFS image holding a PFSC‑compressed exFAT image; decompressed on the fly through the library, no intermediate file). A pure‑.NET exFAT reader reads `param.json` / icon / size straight from the image. On macOS the image is **mounted read‑only via `hdiutil` (no copy)**; on Windows, or when the image contains junk files, it is **extracted to the temp folder** (skipping `.DS_Store`, `._*`, `Thumbs.db`…) and cleaned up afterwards. **Or a GP5 project (`.gp5`)** from Publishing Tools / fpkg‑gui — Normal layout (`rootdir` + exclude masks) or Flat layout (explicit file list); relative paths resolve from the project's folder, the metadata card shows the layout and project root, and only the files the project lists are counted. |
 | **Languages** | Vietnamese / English, switch instantly in the header, choice is remembered. CLI takes `--lang vi\|en` or the `FPKG_LANG` variable. |
 | **Packaging** | FIH debug image, PLAINTEXT_NOAUTH or Native AES‑XTS, APP / Homebrew / DLC, automatic PlayGo (1–64 chunks), SDK override (1–11), passcode, deterministic builds. |
 | **Compression** | Built‑in **managed Kraken encoder** (runs everywhere, multi‑threaded) or **native Oodle** via `libScePubTools.dll` (Windows, automatic fallback to built‑in Kraken). **PFS v2** (default, broadest compatibility) or **PFS v3** (pre‑compression shuffle patterns, automatic per‑block shuffle analysis), Kraken block size 128–256 KiB, physical layout optimisation. |
@@ -88,6 +91,8 @@ Each archive also contains the `fpkg-cli` command‑line tool.
 fpkg-cli info --lang en
 fpkg-cli inspect "/path/PPSA12345"                 # folder
 fpkg-cli inspect "/path/PPSA12345.exfat"           # exFAT image — read directly, no mount
+fpkg-cli inspect "/path/PPSA12345.ffpfsc"          # .ffpfsc container — inner exFAT decompressed on the fly
+fpkg-cli check-update                              # newer release on GitHub?
 fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Standard (level 4), exfat auto
 fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out" --exfat extract
 fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset fast --clean-junk
@@ -101,13 +106,14 @@ fpkg-cli pkg-extract "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --outp
 
 Exit codes: `0` success · `1` invalid arguments · `2` build failed · `3` cancelled.
 
-## exFAT images (.exfat)
+## Disk images (.exfat / .ffpfsc)
 
 - Detected automatically by the `EXFAT   ` signature at the volume start, or inside an MBR/GPT partition; common offsets (sector 63, 2048…) are probed too.
 - The app folder is located up to 3 levels deep inside the image (root first, e.g. dumps with `sce_sys` at the root).
 - **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → build straight from the mount point, unmount when done. *Automatic* only mounts a clean image; if junk files are present it extracts so they can be skipped.
 - **Windows / Linux:** extracted with the pure‑.NET reader (3 workers, 4 MB buffers) to `<temp>/exfat-<name>-<hash>/`, needing extra free space ≈ the data in the image; removed after the build (even on cancel).
 - **Validated:** the same image built two ways — hdiutil mount vs. pure‑.NET extraction — produces **byte‑identical** packages (same SHA‑256), i.e. the reader matches the macOS driver exactly.
+- **`.ffpfsc` containers:** a PS5 PFS image (superblock v2, 64 KiB blocks) that holds one PFSC‑compressed file — the exFAT dump of the game. The app detects it by its header (any extension) or the `.ffpfsc` extension, layers the exFAT reader on the library's PFSC decompression (~900 MB/s, no temporary image) and always **extracts** the app folder to the temp folder before building, since a container cannot be mounted. Measured: 1.2 GB container (4.29 GB exFAT, 2.9 GB of game data) → info in 0.15 s, full build in 31 s.
 
 ## Performance
 

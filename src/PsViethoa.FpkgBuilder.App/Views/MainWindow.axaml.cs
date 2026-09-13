@@ -320,7 +320,7 @@ public partial class MainWindow : Window
                 return path;
             }
 
-            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasExFatExtension(path) || ExFatImage.IsExFatFile(path)))
+            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path)))
             {
                 return path;
             }

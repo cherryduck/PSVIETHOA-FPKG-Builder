@@ -47,7 +47,7 @@ public sealed class ExFatImage : IDisposable
 
     private static ReadOnlySpan<byte> Signature => "EXFAT   "u8;
 
-    private readonly SafeFileHandle _handle;
+    private readonly IImageReader _reader;
     private readonly long _fileLength;
     private readonly int _bytesPerSectorShift;
     private readonly int _clusterShift;
@@ -55,10 +55,10 @@ public sealed class ExFatImage : IDisposable
     private byte[]? _fat;
     private bool _disposed;
 
-    private ExFatImage(string path, SafeFileHandle handle, long fileLength, long volumeOffset, ReadOnlySpan<byte> boot)
+    private ExFatImage(string path, IImageReader handle, long fileLength, long volumeOffset, ReadOnlySpan<byte> boot)
     {
         Path = path;
-        _handle = handle;
+        _reader = handle;
         _fileLength = fileLength;
         VolumeOffset = volumeOffset;
 
@@ -131,8 +131,8 @@ public sealed class ExFatImage : IDisposable
                 return false;
             }
 
-            using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return TryLocateVolume(handle, RandomAccess.GetLength(handle), out _);
+            using var handle = OpenReader(path);
+            return TryLocateVolume(handle, handle.Length, out _);
         }
         catch (Exception)
         {
@@ -142,10 +142,10 @@ public sealed class ExFatImage : IDisposable
 
     public static ExFatImage Open(string path)
     {
-        var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess);
+        var handle = OpenReader(path);
         try
         {
-            var length = RandomAccess.GetLength(handle);
+            var length = handle.Length;
             if (!TryLocateVolume(handle, length, out var offset))
             {
                 throw new InvalidDataException(Loc.T("Val.ExFatInvalid"));
@@ -166,9 +166,41 @@ public sealed class ExFatImage : IDisposable
         }
     }
 
+    /// <summary>
+    /// Mở nguồn ảnh: tệp .exfat thuần, hoặc tệp .ffpfsc (ảnh PFS PS5 chứa một tệp exFAT nén PFSC) — khi đó bộ đọc exFAT
+    /// được đặt lên lớp giải nén của thư viện, không cần giải nén ra tệp trung gian.
+    /// </summary>
+    private static IImageReader OpenReader(string path)
+    {
+        if (PfsContainer.IsContainer(path))
+        {
+            var container = PfsContainer.Open(path);
+            try
+            {
+                return container.CreateEntryReader();
+            }
+            catch
+            {
+                container.Dispose();
+                throw;
+            }
+        }
+
+        return new FileImageReader(File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess));
+    }
+
+    /// <summary>Ảnh này nằm trong một container PFS (.ffpfsc) chứ không phải tệp exFAT thuần.</summary>
+    public bool IsPfsContainer => _reader is PfsEntryReader;
+
+    /// <summary>Tên tệp exFAT bên trong container PFS (null với ảnh .exfat thuần).</summary>
+    public string? ContainerEntryName => (_reader as PfsEntryReader)?.EntryName;
+
+    /// <summary>Kích thước lưu trữ (đã nén) của tệp exFAT bên trong container PFS; null với ảnh thuần.</summary>
+    public long? ContainerStoredLength => (_reader as PfsEntryReader)?.StoredLength;
+
     // ===================== Định vị volume =====================
 
-    private static bool TryLocateVolume(SafeFileHandle handle, long length, out long offset)
+    private static bool TryLocateVolume(IImageReader handle, long length, out long offset)
     {
         offset = 0;
         Span<byte> sector = stackalloc byte[512];
@@ -229,7 +261,7 @@ public sealed class ExFatImage : IDisposable
         return false;
     }
 
-    private static bool TryLocateGpt(SafeFileHandle handle, long length, int sectorSize, out long offset)
+    private static bool TryLocateGpt(IImageReader handle, long length, int sectorSize, out long offset)
     {
         offset = 0;
         Span<byte> header = stackalloc byte[512];
@@ -282,7 +314,7 @@ public sealed class ExFatImage : IDisposable
         return false;
     }
 
-    private static bool HasSignature(SafeFileHandle handle, long length, long offset)
+    private static bool HasSignature(IImageReader handle, long length, long offset)
     {
         if (offset < 0 || offset + 512 > length)
         {
@@ -293,12 +325,12 @@ public sealed class ExFatImage : IDisposable
         return ReadAt(handle, offset + 3, signature) == 8 && signature.SequenceEqual(Signature);
     }
 
-    private static int ReadAt(SafeFileHandle handle, long offset, Span<byte> buffer)
+    private static int ReadAt(IImageReader handle, long offset, Span<byte> buffer)
     {
         var total = 0;
         while (total < buffer.Length)
         {
-            var read = RandomAccess.Read(handle, buffer[total..], offset + total);
+            var read = handle.ReadAt(offset + total, buffer[total..]);
             if (read <= 0)
             {
                 break;
@@ -313,7 +345,7 @@ public sealed class ExFatImage : IDisposable
     internal int ReadAt(long offset, Span<byte> buffer)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return ReadAt(_handle, offset, buffer);
+        return ReadAt(_reader, offset, buffer);
     }
 
     // ===================== FAT & cluster =====================
@@ -356,7 +388,7 @@ public sealed class ExFatImage : IDisposable
             }
 
             var fat = new byte[bytes];
-            ReadAt(_handle, VolumeOffset + ((long)FatOffsetSectors << _bytesPerSectorShift), fat);
+            ReadAt(_reader, VolumeOffset + ((long)FatOffsetSectors << _bytesPerSectorShift), fat);
             _fat = fat;
             return fat;
         }
@@ -665,7 +697,7 @@ public sealed class ExFatImage : IDisposable
         }
 
         _disposed = true;
-        _handle.Dispose();
+        _reader.Dispose();
     }
 }
 
@@ -788,4 +820,31 @@ internal sealed class ExFatFileStream : Stream
     public override void SetLength(long value) => throw new NotSupportedException();
 
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+}
+
+/// <summary>Nguồn byte đọc theo vị trí (an toàn đa luồng) cho bộ đọc exFAT: tệp thật hoặc tệp bên trong container PFS.</summary>
+public interface IImageReader : IDisposable
+{
+    long Length { get; }
+
+    /// <summary>Đọc tối đa buffer.Length byte tại offset; trả về số byte đọc được (0 khi hết).</summary>
+    int ReadAt(long offset, Span<byte> buffer);
+}
+
+/// <summary>Tệp trên đĩa, đọc bằng RandomAccess (không thay đổi vị trí chung, dùng song song được).</summary>
+internal sealed class FileImageReader : IImageReader
+{
+    private readonly SafeFileHandle _handle;
+
+    public FileImageReader(SafeFileHandle handle)
+    {
+        _handle = handle;
+        Length = RandomAccess.GetLength(handle);
+    }
+
+    public long Length { get; }
+
+    public int ReadAt(long offset, Span<byte> buffer) => RandomAccess.Read(_handle, buffer, offset);
+
+    public void Dispose() => _handle.Dispose();
 }

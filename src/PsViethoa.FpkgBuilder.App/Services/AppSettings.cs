@@ -89,6 +89,12 @@ public sealed class AppSettings
     public bool ExtractOutputAuto { get; set; } = true;
 
     public List<string> RecentSources { get; set; } = new();
+
+    /// <summary>Tự kiểm tra bản mới trên GitHub Releases khi khởi động (tối đa một lần mỗi 6 giờ).</summary>
+    public bool CheckUpdatesOnStartup { get; set; } = true;
+
+    public DateTime? LastUpdateCheckUtc { get; set; }
+
 }
 
 public static class SettingsService

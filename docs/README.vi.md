@@ -39,7 +39,10 @@ Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng
 
 > Kết quả là một **FPKG debug** (ảnh FIH, signed byte `0x00`) — chỉ cài được trên **PS5 đã bật chế độ debug**.
 
-## Có gì mới trong 2.1.0
+## Có gì mới trong 2.1.x
+
+- **2.1.4 — nguồn `.ffpfsc`**: container PFS PS5 chứa bản dump exFAT nén PFSC mở như ảnh `.exfat` (giải nén trực tiếp, không tạo tệp trung gian; nút **Tệp .ffpfsc** riêng, kéo thả, `fpkg-cli inspect / build --source x.ffpfsc`). **Kiểm tra cập nhật**: huy hiệu xanh ở header khi GitHub có bản mới (kiểm tra mỗi lần mở, nút ↻, `fpkg-cli check-update`).
+- **2.1.1 – 2.1.3**: trích xuất theo bố cục Sony (`sce_sys` tạo gói lại được), thư mục xuất tự đặt, preset "Tiêu chuẩn", huy hiệu phiên bản, xoá lịch sử, lưới an toàn giao diện.
 
 - **Engine LibProsperoPkg được cập nhật** — đọc / nén / ghi gối đầu nhau với ít bản sao trung gian hơn, khử trùng lặp khối và bộ đệm nén dùng trong lượt tạo gói, Kraken tích hợp được cải thiện (nhất là mức 8–9), tự chuyển sang Kraken tích hợp khi không có Oodle, sửa lỗi xử lý tệp và hủy giữa chừng, và gói đã có được giữ nguyên nếu lần tạo lại thất bại.
 - **Chọn PFS v2 / v3**, **kích thước khối nén Kraken** tuỳ chỉnh (128–256 KiB), **mẫu shuffle trước nén** và **tự phân tích chọn shuffle tốt nhất** (tối ưu texture của PFS v3 bằng cách chọn hoán vị — rất chậm, chỉ phát huy đầy đủ ở Kraken mức 9), **tối ưu bố cục vật lý** tuỳ chọn. Gói PFS v3 cần **firmware PS5 7.00 trở lên**; ứng dụng sẽ cảnh báo về điều này.
@@ -55,7 +58,7 @@ Xem [CHANGELOG.md](../CHANGELOG.md) để biết chi tiết.
 
 | Nhóm | Chi tiết |
 |---|---|
-| **Nguồn** | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT (`.exfat`)** — volume thuần, MBR hay GPT. Bộ đọc exFAT thuần .NET đọc `param.json` / icon / dung lượng trực tiếp từ ảnh. Trên macOS, ảnh được **gắn ở chế độ chỉ đọc bằng `hdiutil` (không sao chép)**; trên Windows, hoặc khi ảnh có tệp rác, ảnh được **giải nén ra thư mục tạm** (bỏ qua `.DS_Store`, `._*`, `Thumbs.db`…) rồi tự dọn sau khi xong. **Hoặc dự án GP5 (`.gp5`)** của Publishing Tools / fpkg‑gui — bố cục Normal (`rootdir` + mặt nạ loại trừ) hoặc Flat (liệt kê từng tệp); đường dẫn tương đối tính từ thư mục chứa dự án, thẻ thông tin hiển thị bố cục và thư mục gốc của dự án, và chỉ những tệp dự án liệt kê mới được đếm. |
+| **Nguồn** | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT (`.exfat`)** — volume thuần, MBR hay GPT — **hoặc container `.ffpfsc`** (ảnh PFS PS5 chứa bản dump exFAT nén PFSC; giải nén trực tiếp qua thư viện, không tạo tệp trung gian). Bộ đọc exFAT thuần .NET đọc `param.json` / icon / dung lượng trực tiếp từ ảnh. Trên macOS, ảnh được **gắn ở chế độ chỉ đọc bằng `hdiutil` (không sao chép)**; trên Windows, hoặc khi ảnh có tệp rác, ảnh được **giải nén ra thư mục tạm** (bỏ qua `.DS_Store`, `._*`, `Thumbs.db`…) rồi tự dọn sau khi xong. **Hoặc dự án GP5 (`.gp5`)** của Publishing Tools / fpkg‑gui — bố cục Normal (`rootdir` + mặt nạ loại trừ) hoặc Flat (liệt kê từng tệp); đường dẫn tương đối tính từ thư mục chứa dự án, thẻ thông tin hiển thị bố cục và thư mục gốc của dự án, và chỉ những tệp dự án liệt kê mới được đếm. |
 | **Ngôn ngữ** | Tiếng Việt / English, chuyển ngay trên header, lựa chọn được ghi nhớ. CLI nhận `--lang vi\|en` hoặc biến môi trường `FPKG_LANG`. |
 | **Tạo gói** | Ảnh FIH debug, PLAINTEXT_NOAUTH hoặc Native AES‑XTS, APP / Homebrew / DLC, PlayGo tự động (1–64 khối), ghi đè SDK (1–11), passcode, bản dựng xác định (deterministic). |
 | **Nén** | **Bộ nén Kraken tích hợp** (thuần .NET, chạy trên mọi hệ điều hành, đa luồng) hoặc **Oodle gốc** qua `libScePubTools.dll` (Windows, tự chuyển về Kraken tích hợp khi không có). **PFS v2** (mặc định, tương thích rộng nhất) hoặc **PFS v3** (mẫu shuffle trước nén, tự phân tích shuffle cho từng khối), kích thước khối Kraken 128–256 KiB, tối ưu bố cục vật lý. |
@@ -88,6 +91,8 @@ Mỗi gói nén đều kèm sẵn công cụ dòng lệnh `fpkg-cli`.
 fpkg-cli info --lang en
 fpkg-cli inspect "/path/PPSA12345"                 # folder
 fpkg-cli inspect "/path/PPSA12345.exfat"           # exFAT image — read directly, no mount
+fpkg-cli inspect "/path/PPSA12345.ffpfsc"          # .ffpfsc container — inner exFAT decompressed on the fly
+fpkg-cli check-update                              # newer release on GitHub?
 fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Sony standard (level 4), exfat auto
 fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out" --exfat extract
 fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset fast --clean-junk
@@ -101,13 +106,15 @@ fpkg-cli pkg-extract "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --outp
 
 Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại · `3` bị hủy.
 
-## Ảnh exFAT (.exfat)
+## Ảnh đĩa (.exfat / .ffpfsc)
 
 - Nhận diện tự động theo chữ ký `EXFAT   ` ở đầu volume, hoặc bên trong phân vùng MBR/GPT; các offset thông dụng (sector 63, 2048…) cũng được dò.
 - Thư mục ứng dụng được tìm tới độ sâu 3 cấp bên trong ảnh (ưu tiên gốc, ví dụ các bản dump có `sce_sys` ngay tại gốc).
 - **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → tạo gói thẳng từ điểm gắn, tháo ảnh khi xong. Chế độ *Tự động* chỉ gắn ảnh khi ảnh không có tệp rác; nếu có tệp rác thì giải nén để có thể bỏ qua chúng.
 - **Windows / Linux:** giải nén bằng bộ đọc thuần .NET (3 luồng, bộ đệm 4 MB) ra `<temp>/exfat-<name>-<hash>/`, cần thêm dung lượng trống ≈ lượng dữ liệu trong ảnh; xoá sau khi tạo gói (kể cả khi hủy).
 - **Đã đối chứng:** cùng một ảnh tạo gói theo hai cách — gắn bằng hdiutil và giải nén bằng bộ đọc thuần .NET — cho ra gói **giống hệt nhau từng byte** (cùng SHA‑256), tức bộ đọc khớp chính xác với driver của macOS.
+
+- **Container `.ffpfsc`:** ảnh PFS PS5 (superblock v2, khối 64 KiB) chứa đúng một tệp nén PFSC là bản dump exFAT của game. Ứng dụng nhận diện qua header (bất kỳ đuôi nào) hoặc đuôi `.ffpfsc`, đặt bộ đọc exFAT lên lớp giải nén PFSC của thư viện (~900 MB/s, không tạo ảnh tạm) và luôn **trích** thư mục ứng dụng ra thư mục tạm trước khi tạo gói vì container không gắn được. Đo thực tế: container 1,2 GB (exFAT 4,29 GB, 2,9 GB dữ liệu game) → đọc thông tin 0,15 giây, tạo gói trọn vẹn 31 giây.
 
 ## Hiệu năng
 

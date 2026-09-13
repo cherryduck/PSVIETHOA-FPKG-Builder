@@ -182,6 +182,13 @@ public sealed class BuildEngine
     /// <summary>Chọn cách xử lý ảnh exFAT: gắn (macOS, ảnh sạch) hoặc giải nén.</summary>
     public static ExFatStrategy DecideStrategy(BuildRequest request, SourceInfo source, Action<LogEntry>? log)
     {
+        if (source.IsPfsContainer)
+        {
+            // Ảnh exFAT nằm trong container .ffpfsc: hdiutil không gắn được tệp này → luôn giải nén qua lớp PFS của thư viện.
+            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.PfsContainerExtract")));
+            return ExFatStrategy.Extract;
+        }
+
         switch (request.ExFat)
         {
             case ExFatStrategy.Extract:
@@ -286,9 +293,11 @@ public sealed class BuildEngine
         log(new LogEntry(LogLevel.Success, Loc.T("Plan.Start")));
         log(new LogEntry(LogLevel.Info, source.IsGp5
             ? Loc.F("Plan.SourceGp5", source.Path, project?.Layout ?? "—", project?.RootFolder ?? "—")
-            : source.IsExFat
-                ? Loc.F("Plan.SourceExFat", source.Path, source.AppRootInImage)
-                : Loc.F("Plan.Source", source.Path)));
+            : source.IsPfsContainer
+                ? Loc.F("Plan.SourcePfs", source.Path, source.AppRootInImage)
+                : source.IsExFat
+                    ? Loc.F("Plan.SourceExFat", source.Path, source.AppRootInImage)
+                    : Loc.F("Plan.Source", source.Path)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Output", request.OutputFolder)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Temp", request.TemporaryFolder)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.ContentId", request.ContentId)));

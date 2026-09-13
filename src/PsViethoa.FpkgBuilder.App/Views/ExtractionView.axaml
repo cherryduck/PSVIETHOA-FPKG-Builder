@@ -1,0 +1,513 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
+             xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
+             xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             x:Class="PsViethoa.FpkgBuilder.App.Views.ExtractionView"
+             x:DataType="vm:ExtractionViewModel"
+             DragDrop.AllowDrop="True">
+
+    <UserControl.Styles>
+        <!-- Danh sách tệp trong gói: hàng gọn, virtualized, cột kích thước canh phải -->
+        <Style Selector="ListBox.files">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem">
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Margin" Value="0,1" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        </Style>
+        <Style Selector="ListBox.files CheckBox">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+        </Style>
+        <Style Selector="TextBlock.entrypath">
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeSm}" />
+            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.entrypath.dir">
+            <Setter Property="Foreground" Value="{DynamicResource FgSecondaryBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.entrymeta">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeXs}" />
+            <Setter Property="LineHeight" Value="16" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.entrysize">
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeSm}" />
+            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- Tuỳ chọn ở bước 2 -->
+        <Style Selector="CheckBox.option">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="6,0,0,0" />
+        </Style>
+        <!-- Xem trước -->
+        <Style Selector="SelectableTextBlock.preview">
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeXs}" />
+            <Setter Property="LineHeight" Value="16" />
+            <Setter Property="Foreground" Value="{DynamicResource FgSecondaryBrush}" />
+        </Style>
+        <!-- Tab "Tệp trong gói & xem trước" | "Nhật ký" -->
+        <Style Selector="TabControl.workspace">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="TabControl.workspace TabItem">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeBase}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="TabControl.workspace TabItem:selected">
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="TabControl.workspace TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="580,18,*" Margin="22,18,22,12">
+
+        <!-- ~~~ CỘT TRÁI: BƯỚC 1, BƯỚC 2, THÔNG TIN GÓI ~~~ -->
+        <ScrollViewer Grid.Column="0" Name="InfoScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="14" Margin="0,0,10,0">
+
+                <!-- BƯỚC 1 -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                                <TextBlock Text="1" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Classes="h2" Text="{l:T Extract.Step1.Title}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="label" Text="{l:T Extract.PkgFileLabel}" />
+                            <Grid ColumnDefinitions="*,8,Auto,6,Auto">
+                                <TextBox Name="PackageBox" Text="{Binding PackagePath, Mode=TwoWay}" Watermark="{l:T Extract.PathWatermark}"
+                                         Classes.error="{Binding HasLoadError}" IsEnabled="{Binding CanEdit}" />
+                                <Button Grid.Column="2" Command="{Binding BrowsePackageCommand}">
+                                    <StackPanel Classes="btn">
+                                        <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                        <TextBlock Text="{l:T Common.Browse}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="4" Width="40" Height="40" Padding="0" Command="{Binding ReloadCommand}"
+                                        ToolTip.Tip="{l:T Extract.ReloadTip}" AutomationProperties.Name="{l:T Extract.ReloadTip}">
+                                    <PathIcon Data="{StaticResource IconRefresh}" />
+                                </Button>
+                            </Grid>
+                            <TextBlock Classes="error" Text="{Binding LoadError}" IsVisible="{Binding HasLoadError}" />
+                        </StackPanel>
+
+                        <!-- Thông tin game hiện ngay khi nạp gói: icon, tên, Content ID, các chip -->
+                        <Border Classes="surface" Padding="14">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Width="72" Height="72" CornerRadius="16" Background="{DynamicResource MutedBrush}" ClipToBounds="True" Margin="0,0,14,0" VerticalAlignment="Top">
+                                        <Panel>
+                                            <PathIcon Classes="lg muted" Data="{StaticResource IconPackage}" IsVisible="{Binding !HasIcon}" Width="28" Height="28" />
+                                            <Image Source="{Binding IconImage}" IsVisible="{Binding HasIcon}" Stretch="UniformToFill" />
+                                        </Panel>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <TextBlock Classes="h3 metatitle" Classes.warning="{Binding MetadataWarning}" Text="{Binding MetaTitle}" TextWrapping="Wrap" />
+                                        <SelectableTextBlock Classes="mono small muted" Text="{Binding MetaSubtitle}" TextWrapping="Wrap" />
+                                        <WrapPanel Margin="0,2,0,0" IsVisible="{Binding HasPackage}">
+                                            <Border Classes="chip accent" Margin="0,0,6,4" IsVisible="{Binding KindChip, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding KindChip}" /></Border>
+                                            <Border Classes="chip info" Margin="0,0,6,4" IsVisible="{Binding ModeChip, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding ModeChip}" /></Border>
+                                            <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding VersionChip, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding VersionChip}" /></Border>
+                                            <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding SdkChip, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding SdkChip}" /></Border>
+                                            <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding CategoryChip, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding CategoryChip}" /></Border>
+                                            <Border Classes="chip success" Margin="0,0,6,4" IsVisible="{Binding FilesChip, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding FilesChip}" /></Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Grid>
+                                <ProgressBar Classes="thin" IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
+                                <TextBlock Classes="hint" Margin="0" Text="{Binding LoadingText}" IsVisible="{Binding IsLoading}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasContainerSummary}">
+                                    <PathIcon Classes="sm muted" Data="{StaticResource IconArchive}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                    <SelectableTextBlock Classes="small secondary mono" Text="{Binding ContainerSummary}" TextWrapping="Wrap" MaxWidth="480" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="label" Text="{l:T Extract.OutputLabel}" />
+                            <Grid ColumnDefinitions="*,8,Auto">
+                                <TextBox Name="OutputBox" Text="{Binding OutputFolder, Mode=TwoWay}" Watermark="{l:T Extract.OutputWatermark}" IsEnabled="{Binding CanEdit}" />
+                                <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}">
+                                    <StackPanel Classes="btn">
+                                        <PathIcon Data="{StaticResource IconFolder}" />
+                                        <TextBlock Text="{l:T Common.Browse}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding FreeSpaceText, Converter={x:Static conv:AppConverters.NotEmpty}}">
+                                <PathIcon Classes="sm diskicon" Data="{StaticResource IconDisk}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                <TextBlock Classes="small diskinfo" Text="{Binding FreeSpaceText}" TextWrapping="Wrap" MaxWidth="480" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- BƯỚC 2 -->
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                                <TextBlock Text="2" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Classes="h2" Text="{l:T Extract.Step2.Title}" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4" IsEnabled="{Binding CanEdit}">
+                            <CheckBox Classes="option" IsChecked="{Binding ExtractAppTree, Mode=TwoWay}" IsEnabled="{Binding CanExtract}">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{l:T Extract.OptAppTree}" TextWrapping="Wrap" />
+                                    <TextBlock Classes="xs muted" Text="{l:T Extract.OptAppTreeHint}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Classes="option" IsChecked="{Binding ExtractOuter, Mode=TwoWay}" IsEnabled="{Binding HasPackage}" Content="{l:T Extract.OptOuter}" />
+                            <CheckBox Classes="option" IsChecked="{Binding ExtractCnt, Mode=TwoWay}" IsEnabled="{Binding CanExport}" Content="{l:T Extract.OptCnt}" />
+                            <CheckBox Classes="option" IsChecked="{Binding ExtractSi, Mode=TwoWay}" IsEnabled="{Binding HasSupplement}">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{l:T Extract.OptSi}" TextWrapping="Wrap" />
+                                    <TextBlock Classes="xs muted" Text="{l:T Extract.OptSiNone}" IsVisible="{Binding !HasSupplement}" />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Classes="option" IsChecked="{Binding DecompressPfsc, Mode=TwoWay}" Content="{l:T Extract.OptDecompress}" />
+                        </StackPanel>
+
+                        <Border Classes="divider" Margin="0" />
+
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="label" Text="{l:T Extract.PasscodeLabel2}" />
+                            <Grid ColumnDefinitions="*,10,Auto">
+                                <TextBox Name="ExtractPasscodeBox" Classes="mono" PasswordChar="•" RevealPassword="{Binding ShowPasscode}" Text="{Binding Passcode, Mode=TwoWay}" MaxLength="32" IsEnabled="{Binding CanEdit}" />
+                                <CheckBox Grid.Column="2" IsChecked="{Binding ShowPasscode, Mode=TwoWay}" Content="{l:T Extract.Show}" VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock Classes="hint" Text="{l:T Extract.PasscodeHint2}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- THÔNG TIN GÓI -->
+                <Border Classes="card" IsVisible="{Binding HasPackage}">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <PathIcon Data="{StaticResource IconInfo}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Classes="h2" Text="{l:T Extract.InfoTitle}" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="link" Command="{Binding ComputeSha256Command}" IsVisible="{Binding !HasSha}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconShieldCheck}" />
+                                    <TextBlock Text="{l:T Extract.ComputeSha}" FontSize="12.5" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="3" Classes="link" Command="{Binding CopyInfoCommand}" Margin="6,0,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconCopy}" />
+                                    <TextBlock Text="{l:T Extract.CopyInfo}" FontSize="12.5" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <StackPanel Spacing="4" IsVisible="{Binding IsHashing}">
+                            <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding HashPercent}" />
+                            <TextBlock Classes="xs muted" Text="{Binding HashingText}" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="label" Text="{l:T Extract.SectionGeneralTitle}" />
+                            <ItemsControl ItemsSource="{Binding GeneralRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:KeyValueRow">
+                                        <Grid ColumnDefinitions="150,*" Margin="0,0,0,2">
+                                            <TextBlock Classes="kvkey" Text="{Binding Key}" TextWrapping="Wrap" />
+                                            <SelectableTextBlock Grid.Column="1" Classes="kvval mono" Text="{Binding Value}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6" IsVisible="{Binding HasParams}">
+                            <TextBlock Classes="label" Text="{l:T Extract.SectionParamsTitle}" />
+                            <Border Classes="surface" Padding="12,10">
+                                <ItemsControl ItemsSource="{Binding ParamRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:KeyValueRow">
+                                            <Grid ColumnDefinitions="200,*" Margin="0,0,0,2">
+                                                <SelectableTextBlock Classes="kvval mono" Foreground="{DynamicResource FgMutedBrush}" Text="{Binding Key}" />
+                                                <SelectableTextBlock Grid.Column="1" Classes="kvval mono" Text="{Binding Value}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Classes="error" Margin="0" Text="{Binding ParamError}" IsVisible="{Binding HasParamError}" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ~~~ CỘT PHẢI: TRẠNG THÁI + TỆP/XEM TRƯỚC/NHẬT KÝ ~~~ -->
+        <Grid Grid.Column="2" RowDefinitions="Auto,*">
+
+            <!-- Thẻ trạng thái -->
+            <Border Grid.Row="0" Classes="card" Padding="20,18">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Ellipse Classes="dot" Classes.working="{Binding IsStatusWorking}" Classes.success="{Binding IsStatusSuccess}" Classes.error="{Binding IsStatusError}" Classes.canceled="{Binding IsStatusCanceled}" Margin="0,0,10,0" VerticalAlignment="Top" Height="10" Width="10" />
+                        <StackPanel Grid.Column="1" Spacing="2" Margin="0,-3,0,0">
+                            <TextBlock Classes="h2" Text="{Binding HeadlineText}" TextTrimming="CharacterEllipsis" />
+                            <SelectableTextBlock Classes="small muted" Text="{Binding SublineText}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top" Margin="10,0,0,0" IsVisible="{Binding ElapsedText, Converter={x:Static conv:AppConverters.NotEmpty}}">
+                            <PathIcon Classes="sm muted" Data="{StaticResource IconClock}" />
+                            <TextBlock Classes="mono secondary" Text="{Binding ElapsedText}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" IsIndeterminate="{Binding IsIndeterminate}" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="small secondary" Text="{Binding ProgressText}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="xs muted mono" Text="{Binding CurrentFile}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding CurrentFile}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Classes="mono" FontSize="26" FontWeight="SemiBold" LineHeight="30" Text="{Binding PercentText}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Border Classes="banner info" IsVisible="{Binding HasBlockedReason}">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <PathIcon Classes="info" Data="{StaticResource IconInfo}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                            <TextBlock Grid.Column="1" Classes="small" Text="{Binding BlockedReason}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="banner danger" IsVisible="{Binding HasErrorBanner}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <PathIcon Classes="danger" Data="{StaticResource IconAlertCircle}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                            <SelectableTextBlock Grid.Column="1" Classes="small" Text="{Binding ErrorBanner}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="icon" Width="28" Height="28" Command="{Binding DismissErrorCommand}" VerticalAlignment="Top" ToolTip.Tip="{l:T Common.Close}" AutomationProperties.Name="{l:T Common.Close}">
+                                <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Border Classes="banner warning" IsVisible="{Binding HasNoticeBanner}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <PathIcon Classes="warning" Data="{StaticResource IconAlert}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                            <TextBlock Grid.Column="1" Classes="small" Text="{Binding NoticeBanner}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="icon" Width="28" Height="28" Command="{Binding DismissNoticeCommand}" VerticalAlignment="Top" ToolTip.Tip="{l:T Common.Close}" AutomationProperties.Name="{l:T Common.Close}">
+                                <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Border Classes="banner success" IsVisible="{Binding HasResult}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <PathIcon Classes="success" Data="{StaticResource IconCheckCircle}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="small" FontWeight="SemiBold" Text="{Binding ResultTitle}" TextWrapping="Wrap" />
+                                <SelectableTextBlock Classes="xs mono muted" Text="{Binding ResultFolder}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="icon" Width="28" Height="28" Command="{Binding DismissResultCommand}" VerticalAlignment="Top" ToolTip.Tip="{l:T Common.Close}" AutomationProperties.Name="{l:T Common.Close}">
+                                <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,10,Auto">
+                        <Button Classes="primary" Command="{Binding ExtractCommand}" IsVisible="{Binding !IsExtracting}" HorizontalAlignment="Stretch" ToolTip.Tip="{l:T Extract.ButtonTip}">
+                            <StackPanel Classes="btn" HorizontalAlignment="Center">
+                                <PathIcon Classes="lg" Data="{StaticResource IconPackageDown}" />
+                                <TextBlock Text="{l:T Extract.Button}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Name="CancelExtractButton" Classes="danger" MinHeight="46" Command="{Binding CancelWorkCommand}" IsVisible="{Binding IsExtracting}" HorizontalAlignment="Stretch" ToolTip.Tip="Esc">
+                            <StackPanel Classes="btn" HorizontalAlignment="Center">
+                                <PathIcon Classes="lg" Data="{StaticResource IconStop}" />
+                                <TextBlock Text="{l:T Extract.CancelShort}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="2" MinHeight="46" Command="{Binding OpenOutputFolderCommand}" ToolTip.Tip="{l:T Extract.OpenOutput}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconOpenExternal}" />
+                                <TextBlock Text="{l:T Extract.OpenOutput}" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Tệp trong gói & xem trước | Nhật ký -->
+            <Border Grid.Row="1" Classes="card" Margin="0,14,0,0" Padding="0" ClipToBounds="True">
+                <Panel>
+                    <!-- Trạng thái trống -->
+                    <StackPanel IsVisible="{Binding !HasPackage}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Margin="24">
+                        <Border Width="72" Height="72" CornerRadius="20" Background="{DynamicResource AccentSoftBrush}" HorizontalAlignment="Center">
+                            <PathIcon Classes="accent" Data="{StaticResource IconArchive}" Width="34" Height="34" />
+                        </Border>
+                        <TextBlock Classes="h2" Text="{l:T Extract.EmptyTitle}" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <TextBlock Classes="muted" Text="{l:T Extract.EmptyHint}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="440" />
+                    </StackPanel>
+
+                    <TabControl Classes="workspace" IsVisible="{Binding HasPackage}" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}" Margin="8,4,8,0">
+                        <TabItem Header="{l:T Extract.TabFiles}">
+                            <Grid RowDefinitions="Auto,Auto,*" Margin="4,8,4,8">
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                                    <PathIcon Classes="sm muted" Data="{StaticResource IconFilter}" Margin="6,0,8,0" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Name="FilterBox" MinHeight="34" Padding="10,6" Text="{Binding Filter, Mode=TwoWay}" Watermark="{l:T Extract.FilterWatermark}" IsEnabled="{Binding HasEntries}" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0">
+                                        <Button Classes="ghost" Command="{Binding SelectAllCommand}" IsEnabled="{Binding HasEntries}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconSelectAll}" />
+                                                <TextBlock Text="{l:T Extract.SelectAll}" FontSize="12.5" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="ghost" Command="{Binding SelectNoneCommand}" IsEnabled="{Binding HasEntries}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconSelectNone}" />
+                                                <TextBlock Text="{l:T Extract.SelectNone}" FontSize="12.5" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="ghost" Command="{Binding InvertSelectionCommand}" IsEnabled="{Binding HasEntries}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconSwap}" />
+                                                <TextBlock Text="{l:T Extract.Invert}" FontSize="12.5" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Grid.Row="1" Classes="small muted" Text="{Binding SelectionSummary}" Margin="6,8,0,8" />
+                                <Grid Grid.Row="2" ColumnDefinitions="*,10,300">
+                                    <Border Classes="surface" Padding="0" ClipToBounds="True">
+                                        <ListBox Name="FileList" Classes="files" ItemsSource="{Binding VisibleItems}" SelectionMode="Multiple,Toggle">
+                                            <ListBox.Styles>
+                                                <Style Selector="ListBoxItem" x:DataType="vm:PackageEntryItem">
+                                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                                                </Style>
+                                            </ListBox.Styles>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PackageEntryItem">
+                                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,76" ToolTip.Tip="{Binding Path}">
+                                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" />
+                                                        <Panel Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                                            <PathIcon Classes="sm accent" Data="{StaticResource IconFolderOutline}" IsVisible="{Binding IsDirectory}" />
+                                                            <PathIcon Classes="sm muted" Data="{StaticResource IconFileOutline}" IsVisible="{Binding IsFile}" />
+                                                        </Panel>
+                                                        <TextBlock Grid.Column="2" Classes="entrypath" Classes.dir="{Binding IsDirectory}" Text="{Binding Path}" />
+                                                        <TextBlock Grid.Column="3" Classes="entrymeta" Text="{Binding DetailText}" Margin="8,0,4,0" />
+                                                        <TextBlock Grid.Column="4" Classes="entrysize" Text="{Binding SizeText}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Border>
+
+                                    <!-- Xem trước -->
+                                    <Border Grid.Column="2" Classes="surface" Padding="0" ClipToBounds="True">
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <StackPanel Grid.Row="0" Spacing="2" Margin="12,10,12,8">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <PathIcon Classes="sm muted" Data="{StaticResource IconEye}" VerticalAlignment="Center" />
+                                                    <TextBlock Classes="small mono" Text="{Binding PreviewTitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PreviewTitle}" VerticalAlignment="Center" MaxWidth="280" />
+                                                </StackPanel>
+                                                <TextBlock Classes="xs muted" Text="{Binding PreviewInfo}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Panel Grid.Row="1" Margin="12,0,12,8">
+                                                <StackPanel IsVisible="{Binding IsPreviewPlaceholder}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                                                    <PathIcon Classes="lg muted" Data="{StaticResource IconEye}" HorizontalAlignment="Center" />
+                                                    <TextBlock Classes="small muted" Text="{Binding PreviewPlaceholder}" TextAlignment="Center" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs faint" Text="{l:T Extract.PreviewHint}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="280" IsVisible="{Binding !HasPreviewItem}" />
+                                                </StackPanel>
+                                                <ProgressBar Classes="thin" IsIndeterminate="True" IsVisible="{Binding IsPreviewLoading}" VerticalAlignment="Top" />
+                                                <ScrollViewer IsVisible="{Binding IsPreviewText}" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                                    <SelectableTextBlock Classes="preview" Text="{Binding PreviewText}" />
+                                                </ScrollViewer>
+                                                <ScrollViewer IsVisible="{Binding IsPreviewHex}" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                                    <SelectableTextBlock Classes="preview" Text="{Binding PreviewText}" />
+                                                </ScrollViewer>
+                                                <Image IsVisible="{Binding IsPreviewImage}" Source="{Binding PreviewImage}" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Panel>
+                                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="4" Margin="8,0,8,8">
+                                                <Button Classes="ghost" Command="{Binding ExtractThisFileCommand}">
+                                                    <StackPanel Classes="btn">
+                                                        <PathIcon Data="{StaticResource IconFolderDownload}" />
+                                                        <TextBlock Text="{l:T Extract.ExtractThis}" FontSize="12.5" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Classes="ghost" Command="{Binding OpenExternalCommand}">
+                                                    <StackPanel Classes="btn">
+                                                        <PathIcon Data="{StaticResource IconOpenInApp}" />
+                                                        <TextBlock Text="{l:T Extract.OpenExternal}" FontSize="12.5" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="{l:T Extract.TabLog}">
+                            <Grid RowDefinitions="Auto,*" Margin="4,8,4,8">
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="6,0,0,8">
+                                    <PathIcon Data="{StaticResource IconTerminal}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <TextBlock Classes="h3" Text="{l:T Extract.TabLog}" VerticalAlignment="Center" />
+                                        <Border Classes="chip" IsVisible="{Binding LogCount}"><TextBlock Text="{Binding LogCount}" /></Border>
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Classes="icon" Command="{Binding ClearLogCommand}" ToolTip.Tip="{l:T Log.ClearTip}" AutomationProperties.Name="{l:T Log.ClearTip}">
+                                        <PathIcon Data="{StaticResource IconTrash}" />
+                                    </Button>
+                                </Grid>
+                                <Border Grid.Row="1" CornerRadius="8" ClipToBounds="True">
+                                    <ListBox Name="ExtractLogList" Classes="log" ItemsSource="{Binding LogEntries}" SelectionMode="Multiple">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="models:LogEntry">
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Classes="logtime" Text="{Binding TimeText}" />
+                                                    <TextBlock Grid.Column="1" Classes="logmsg" Classes.warn="{Binding IsWarning}" Classes.err="{Binding IsError}" Classes.ok="{Binding IsSuccess}" Text="{Binding Message}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Panel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

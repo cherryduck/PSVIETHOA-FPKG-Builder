@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using LibProsperoPkg;
+using LibProsperoPkg.PFS.Compression;
 using PsViethoa.FpkgBuilder.Core.ExFat;
 using PsViethoa.FpkgBuilder.Core.Localization;
 using PsViethoa.FpkgBuilder.Core.Models;
@@ -44,6 +45,9 @@ public sealed class BuildEngine
         }
 
         var source = await Task.Run(() => SourceLocator.Resolve(normalized.SourcePath), cancellationToken).ConfigureAwait(false);
+        var project = source.IsGp5
+            ? await Task.Run(() => Gp5ProjectInfo.Load(source.Path), cancellationToken).ConfigureAwait(false)
+            : null;
 
         Directory.CreateDirectory(normalized.OutputFolder);
         Directory.CreateDirectory(normalized.TemporaryFolder);
@@ -56,7 +60,7 @@ public sealed class BuildEngine
 
         var stopwatch = Stopwatch.StartNew();
         var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase));
-        LogPlan(normalized, source, backend, publishingToolsPath, log);
+        LogPlan(normalized, source, project, backend, publishingToolsPath, log);
         progress?.Report(tracker.Current);
 
         using var sleepGuard = normalized.PreventSleep ? SleepInhibitor.TryAcquire() : null;
@@ -69,7 +73,8 @@ public sealed class BuildEngine
         string? staging = null;
         try
         {
-            var sourceFolder = source.Path;
+            // Dự án GP5: thư viện đọc manifest qua ProjectFilePath, SourceFolder là thư mục chứa tệp .gp5.
+            var sourceFolder = source.IsGp5 ? source.ProjectDirectory : source.Path;
             if (source.IsExFat)
             {
                 progress?.Report(tracker.EnterPhase(exFatPhase!));
@@ -246,15 +251,44 @@ public sealed class BuildEngine
             DeterministicBuild = request.Deterministic,
             GenerateParamJsonIfMissing = true,
             CancellationToken = cancellationToken,
+            PfsCompressionFormat = request.PfsFormat == PfsFormat.V3 ? ProsperoPfsCompressionFormat.Version3 : ProsperoPfsCompressionFormat.Version2,
+            KrakenCompressionBlockSize = Math.Clamp(request.KrakenBlockKiB, BuildRequest.MinKrakenBlockKiB, BuildRequest.MaxKrakenBlockKiB) * 1024,
+            PreCompressionShufflePattern = MapShuffle(request.ShufflePattern),
+            EnableShufflePatternAnalysis = request.PfsFormat == PfsFormat.V3 && request.ShuffleAnalysis,
+            ShufflePredictionCompressionLevel = request.ShufflePredictionLevel,
+            SkipPfsInputDataAllowedCheck = request.SkipPfsInputCheck,
+            EnableOuterBlockCoalescing = request.LayoutOptimization,
+            EnableRelocationAlignmentAdjustment = request.LayoutOptimization,
+            SourceMode = request.SourceMode switch
+            {
+                SourceMode.Folder => ProsperoSourceMode.Folder,
+                SourceMode.Gp5Project => ProsperoSourceMode.Gp5Project,
+                _ => ProsperoSourceMode.Automatic,
+            },
+            ProjectFilePath = request.SourceMode == SourceMode.Gp5Project ? request.ProjectFilePath : null,
         };
     }
 
-    private static void LogPlan(BuildRequest request, SourceInfo source, KrakenBackendKind backend, string? publishingToolsPath, Action<LogEntry> log)
+    private static ProsperoPfsShufflePattern MapShuffle(ShufflePatternKind pattern) =>
+        Enum.TryParse<ProsperoPfsShufflePattern>(pattern.ToString(), out var value) ? value : ProsperoPfsShufflePattern.None;
+
+    /// <summary>Mô tả ngắn cấu hình PFS/shuffle/bố cục để ghi nhật ký và hiển thị.</summary>
+    public static string DescribeCompressionProfile(BuildRequest request)
+    {
+        var shuffle = request.PfsFormat == PfsFormat.V3
+            ? BuildPresets.ShufflePatternLabel(request.ShufflePattern) + (request.ShuffleAnalysis ? Loc.T("Plan.ShuffleAnalysisSuffix") : string.Empty)
+            : "—";
+        return Loc.F("Plan.Pfs", request.PfsFormat == PfsFormat.V3 ? "v3" : "v2", request.KrakenBlockKiB, shuffle, Loc.T(request.LayoutOptimization ? "Common.On" : "Common.Off"));
+    }
+
+    private static void LogPlan(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, KrakenBackendKind backend, string? publishingToolsPath, Action<LogEntry> log)
     {
         log(new LogEntry(LogLevel.Success, Loc.T("Plan.Start")));
-        log(new LogEntry(LogLevel.Info, source.IsExFat
-            ? Loc.F("Plan.SourceExFat", source.Path, source.AppRootInImage)
-            : Loc.F("Plan.Source", source.Path)));
+        log(new LogEntry(LogLevel.Info, source.IsGp5
+            ? Loc.F("Plan.SourceGp5", source.Path, project?.Layout ?? "—", project?.RootFolder ?? "—")
+            : source.IsExFat
+                ? Loc.F("Plan.SourceExFat", source.Path, source.AppRootInImage)
+                : Loc.F("Plan.Source", source.Path)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Output", request.OutputFolder)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Temp", request.TemporaryFolder)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.ContentId", request.ContentId)));
@@ -276,6 +310,16 @@ public sealed class BuildEngine
                 break;
         }
 
+        log(new LogEntry(LogLevel.Info, DescribeCompressionProfile(request)));
+        if (request.PfsFormat == PfsFormat.V3)
+        {
+            // Theo tác giả thư viện: PFS v3 cần firmware PS5 7.00+, tối ưu shuffle chỉ phát huy đầy đủ ở Kraken mức 9.
+            log(new LogEntry(LogLevel.Warning, Loc.T("Plan.PfsV3Firmware")));
+            if (request.ShuffleAnalysis && request.KrakenLevel < BuildRequest.MaxKrakenLevel)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.ShuffleLevel", request.KrakenLevel)));
+            }
+        }
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.PlayGo", request.PlayGoChunks)));
 
         if (request.SdkMajorOverride is { } major && SdkVersions.Get(major) is { } generation)

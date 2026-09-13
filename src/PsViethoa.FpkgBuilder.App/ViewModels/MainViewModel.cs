@@ -63,6 +63,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = settings;
         _dialogs = dialogs;
+        Extraction = new ExtractionViewModel(settings, dialogs, Log);
+        Extraction.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ExtractionViewModel.HeadlineText))
+            {
+                OnPropertyChanged(nameof(FooterStatusText));
+            }
+        };
 
         KeysAvailable = BuildEngine.KeysAvailable;
         LibraryVersion = BuildEngine.LibraryVersion;
@@ -112,6 +120,14 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<string> _backendOptions = Array.Empty<string>();
     [ObservableProperty] private IReadOnlyList<string> _sdkOptions = Array.Empty<string>();
     [ObservableProperty] private IReadOnlyList<string> _exFatOptions = Array.Empty<string>();
+    [ObservableProperty] private IReadOnlyList<string> _sourceModeOptions = Array.Empty<string>();
+    [ObservableProperty] private IReadOnlyList<string> _pfsOptions = Array.Empty<string>();
+    [ObservableProperty] private IReadOnlyList<string> _blockSizeOptions = Array.Empty<string>();
+    [ObservableProperty] private IReadOnlyList<string> _shuffleOptions = Array.Empty<string>();
+
+    private static readonly int[] BlockSizesKiB = [128, 192, 256];
+
+    private static readonly ShufflePatternKind[] ShufflePatterns = Enum.GetValues<ShufflePatternKind>();
 
     private void BuildOptionLists()
     {
@@ -120,6 +136,10 @@ public sealed partial class MainViewModel : ObservableObject
         BackendOptions = [Loc.T("Backend.Auto"), Loc.T("Backend.BuiltIn"), Loc.T("Backend.PubTools"), Loc.T("Backend.None")];
         SdkOptions = SdkVersions.All.Select(g => g.Label).ToList();
         ExFatOptions = [Loc.T("ExFat.Auto"), Loc.T("ExFat.Mount"), Loc.T("ExFat.Extract")];
+        SourceModeOptions = [Loc.T("SourceMode.Auto"), Loc.T("SourceMode.Folder")];
+        PfsOptions = [Loc.T("Pfs.V2"), Loc.T("Pfs.V3")];
+        BlockSizeOptions = BlockSizesKiB.Select(k => $"{k} KiB").ToList();
+        ShuffleOptions = ShufflePatterns.Select(BuildPresets.ShufflePatternLabel).ToList();
     }
 
     public IReadOnlyList<string> RecentSources =>
@@ -134,6 +154,67 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>View lắng nghe để đưa con trỏ về trường lỗi.</summary>
     public event EventHandler<string>? FocusFieldRequested;
+
+    // ===================== Chế độ: tạo gói / giải nén gói =====================
+
+    /// <summary>Trạng thái của chế độ "Giải nén gói" (cột thông tin + danh sách tệp trong gói).</summary>
+    public ExtractionViewModel Extraction { get; }
+
+    [ObservableProperty] private bool _isExtractMode;
+    [ObservableProperty] private bool _isBuildMode = true;
+    private bool _syncingMode;
+
+    partial void OnIsExtractModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(FooterStatusText));
+        if (_syncingMode)
+        {
+            return;
+        }
+
+        _syncingMode = true;
+        try
+        {
+            IsBuildMode = !value;
+        }
+        finally
+        {
+            _syncingMode = false;
+        }
+
+        ApplyModeChanged();
+    }
+
+    partial void OnIsBuildModeChanged(bool value)
+    {
+        if (_syncingMode)
+        {
+            return;
+        }
+
+        _syncingMode = true;
+        try
+        {
+            IsExtractMode = !value;
+        }
+        finally
+        {
+            _syncingMode = false;
+        }
+
+        ApplyModeChanged();
+    }
+
+    private void ApplyModeChanged()
+    {
+        DebugLog.Write($"Mode: extract={IsExtractMode}");
+        BuildCommand.NotifyCanExecuteChanged();
+        _settings.ExtractMode = IsExtractMode;
+        if (IsExtractMode)
+        {
+            Extraction.EnsureLoaded();
+        }
+    }
 
     // ===================== Ngôn ngữ =====================
 
@@ -186,6 +267,10 @@ public sealed partial class MainViewModel : ObservableObject
         var backend = BackendIndex;
         var sdk = SdkIndex;
         var exFat = ExFatIndex;
+        var sourceMode = SourceModeIndex;
+        var pfs = PfsIndex;
+        var block = BlockSizeIndex;
+        var shuffle = ShuffleIndex;
         BuildOptionLists();
         Dispatcher.UIThread.Post(() =>
         {
@@ -194,6 +279,10 @@ public sealed partial class MainViewModel : ObservableObject
             BackendIndex = backend;
             SdkIndex = sdk;
             ExFatIndex = exFat;
+            SourceModeIndex = sourceMode;
+            PfsIndex = pfs;
+            BlockSizeIndex = block;
+            ShuffleIndex = shuffle;
         }, DispatcherPriority.Background);
 
         OnPropertyChanged(nameof(AppVersionText));
@@ -264,12 +353,40 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _publishingToolsPath = string.Empty;
     [ObservableProperty] private bool _advancedExpanded;
     [ObservableProperty] private int _exFatIndex;
+    [ObservableProperty] private int _sourceModeIndex;
+    [ObservableProperty] private int _pfsIndex;
+    [ObservableProperty] private int _blockSizeIndex = 2;
+    [ObservableProperty] private int _shuffleIndex;
+    [ObservableProperty] private bool _shuffleAnalysis;
+    [ObservableProperty] private bool _skipPfsCheck;
+    [ObservableProperty] private bool _layoutOptimization = true;
+
+    public bool IsPfsV3 => PfsIndex == 1;
+
+    partial void OnPfsIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsPfsV3));
+        SyncPresetFromSettings();
+        RefreshValidation();
+    }
+
+    /// <summary>Tự phân tích shuffle chỉ phát huy đầy đủ ở Kraken mức 9 (thông tin từ tác giả thư viện).</summary>
+    public bool ShowShuffleLevelWarning => ShuffleAnalysis && KrakenLevel < BuildRequest.MaxKrakenLevel;
+
+    partial void OnShuffleAnalysisChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowShuffleLevelWarning));
+        SyncPresetFromSettings();
+    }
+
+    partial void OnShuffleIndexChanged(int value) => SyncPresetFromSettings();
 
     // ===================== Preset =====================
 
     [ObservableProperty] private bool _presetFast;
     [ObservableProperty] private bool _presetBalanced;
     [ObservableProperty] private bool _presetSmallest;
+    [ObservableProperty] private bool _presetMaximum;
     [ObservableProperty] private bool _presetCustom;
     [ObservableProperty] private string _presetSummary = string.Empty;
 
@@ -281,6 +398,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isExFatSource;
     [ObservableProperty] private string _metaExFatChip = string.Empty;
     [ObservableProperty] private string _metaExFatRoot = string.Empty;
+    [ObservableProperty] private bool _isGp5Source;
+    [ObservableProperty] private bool _isFolderSource;
+    [ObservableProperty] private string _metaGp5Chip = string.Empty;
+    [ObservableProperty] private string _metaGp5Root = string.Empty;
     [ObservableProperty] private string _metaTitle = string.Empty;
     [ObservableProperty] private string _metaSubtitle = string.Empty;
     [ObservableProperty] private string _metaVersion = string.Empty;
@@ -307,8 +428,31 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _phaseText = string.Empty;
     [ObservableProperty] private string _percentText = "0%";
     [ObservableProperty] private string _etaText = string.Empty;
+    [ObservableProperty] private string _throughputText = string.Empty;
     [ObservableProperty] private string _elapsedText = string.Empty;
     [ObservableProperty] private string _statusText = string.Empty;
+
+    /// <summary>Dòng trạng thái ở chân cửa sổ: theo chế độ đang dùng (tạo gói hoặc giải nén gói).</summary>
+    public string FooterStatusText => IsExtractMode && !string.IsNullOrWhiteSpace(Extraction.HeadlineText) ? Extraction.HeadlineText : StatusText;
+
+    partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(FooterStatusText));
+
+    /// <summary>Esc: huỷ tác vụ đang chạy của chế độ hiện tại (tạo gói hoặc giải nén).</summary>
+    [RelayCommand]
+    private void CancelActive()
+    {
+        if (IsExtractMode)
+        {
+            if (Extraction.CancelWorkCommand.CanExecute(null))
+            {
+                Extraction.CancelWorkCommand.Execute(null);
+            }
+        }
+        else if (CancelCommand.CanExecute(null))
+        {
+            CancelCommand.Execute(null);
+        }
+    }
     [ObservableProperty] private StatusKind _statusKind = StatusKind.Ready;
     [ObservableProperty] private string? _errorBanner;
     [ObservableProperty] private string? _noticeBanner;
@@ -446,6 +590,8 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshDiskInfo();
     }
 
+    partial void OnSourceModeIndexChanged(int value) => RefreshValidation();
+
     partial void OnPlayGoChunksChanged(decimal? value)
     {
         RefreshValidation();
@@ -469,6 +615,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnKrakenLevelChanged(double value)
     {
         UpdateHints();
+        OnPropertyChanged(nameof(ShowShuffleLevelWarning));
         SyncPresetFromSettings();
     }
 
@@ -496,6 +643,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    partial void OnPresetMaximumChanged(bool value)
+    {
+        if (value)
+        {
+            ApplyPreset(BuildPresets.Maximum);
+        }
+    }
+
     private void ApplyPreset(BuildPreset preset)
     {
         if (_syncingPreset)
@@ -511,6 +666,12 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 BackendIndex = 0;
             }
+
+            PfsIndex = preset.PfsFormat == PfsFormat.V3 ? 1 : 0;
+            ShuffleAnalysis = preset.ShuffleAnalysis;
+            // Mẫu shuffle cố định là cấu hình "tuỳ chỉnh": preset nào cũng đặt về None (với "Tối đa" thư viện tự chọn mẫu
+            // qua phân tích), nếu không SyncPresetFromSettings sẽ coi là tuỳ chỉnh ngay sau khi chọn preset.
+            ShuffleIndex = 0;
 
             PresetCustom = false;
             PresetSummary = preset.Detail;
@@ -535,10 +696,18 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var level = (int)Math.Round(KrakenLevel);
             var compressing = BackendIndex != 3;
-            var preset = compressing ? BuildPresets.Match(KrakenBackendKind.Auto, level) : null;
+            var preset = compressing
+                ? BuildPresets.Match(KrakenBackendKind.Auto, level, PfsIndex == 1 ? PfsFormat.V3 : PfsFormat.V2, ShuffleAnalysis)
+                : null;
+            if (preset != null && ShuffleAnalysis && ShuffleIndex != 0)
+            {
+                preset = null;
+            }
+
             PresetFast = preset?.Id == BuildPresets.Fast.Id;
             PresetBalanced = preset?.Id == BuildPresets.Balanced.Id;
             PresetSmallest = preset?.Id == BuildPresets.Smallest.Id;
+            PresetMaximum = preset?.Id == BuildPresets.Maximum.Id;
             PresetCustom = preset == null;
             PresetSummary = preset?.Detail ?? (compressing
                 ? Loc.F("Preset.CustomLevel", level, BuildPresets.KrakenLevelName(level), BuildPresets.KrakenLevelHint(level))
@@ -599,6 +768,13 @@ public sealed partial class MainViewModel : ObservableObject
                 _ => 0,
             };
             ExFatIndex = s.ExFat switch { ExFatStrategy.Mount => 1, ExFatStrategy.Extract => 2, _ => 0 };
+            SourceModeIndex = s.SourceMode == SourceMode.Folder ? 1 : 0;
+            PfsIndex = s.PfsFormat == PfsFormat.V3 ? 1 : 0;
+            BlockSizeIndex = Math.Max(0, Array.IndexOf(BlockSizesKiB, s.KrakenBlockKiB) is var bi && bi >= 0 ? bi : 2);
+            ShuffleIndex = Math.Max(0, Array.IndexOf(ShufflePatterns, s.ShufflePattern));
+            ShuffleAnalysis = s.ShuffleAnalysis;
+            SkipPfsCheck = s.SkipPfsInputCheck;
+            LayoutOptimization = s.LayoutOptimization;
             KrakenLevel = Math.Clamp(s.KrakenLevel, BuildRequest.MinKrakenLevel, BuildRequest.MaxKrakenLevel);
             Threads = Math.Clamp(s.Threads, 0, BuildRequest.MaxThreads);
             PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);
@@ -611,6 +787,7 @@ public sealed partial class MainViewModel : ObservableObject
             AdvancedExpanded = s.AdvancedExpanded;
             AutoScrollLog = s.AutoScrollLog;
             IsDarkTheme = !string.Equals(s.Theme, "Light", StringComparison.OrdinalIgnoreCase);
+            IsExtractMode = s.ExtractMode;
         }
         finally
         {
@@ -634,6 +811,13 @@ public sealed partial class MainViewModel : ObservableObject
         s.ImageMode = ImageModeIndex == 1 ? OuterImageMode.Native : OuterImageMode.PlaintextNoAuth;
         s.KrakenBackend = BackendFromIndex(BackendIndex);
         s.ExFat = ExFatFromIndex(ExFatIndex);
+        s.SourceMode = SourceModeFromIndex(SourceModeIndex);
+        s.PfsFormat = PfsIndex == 1 ? PfsFormat.V3 : PfsFormat.V2;
+        s.KrakenBlockKiB = BlockSizesKiB[Math.Clamp(BlockSizeIndex, 0, BlockSizesKiB.Length - 1)];
+        s.ShufflePattern = ShufflePatterns[Math.Clamp(ShuffleIndex, 0, ShufflePatterns.Length - 1)];
+        s.ShuffleAnalysis = ShuffleAnalysis;
+        s.SkipPfsInputCheck = SkipPfsCheck;
+        s.LayoutOptimization = LayoutOptimization;
         s.KrakenLevel = (int)Math.Round(KrakenLevel);
         s.Threads = (int)(Threads ?? 0);
         s.PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks);
@@ -647,6 +831,8 @@ public sealed partial class MainViewModel : ObservableObject
         s.AutoScrollLog = AutoScrollLog;
         s.Theme = IsDarkTheme ? "Dark" : "Light";
         s.Language = Loc.Current.Language;
+        s.ExtractMode = IsExtractMode;
+        Extraction.SaveSettings();
         SettingsService.Save(s);
     }
 
@@ -683,6 +869,9 @@ public sealed partial class MainViewModel : ObservableObject
         _ => ExFatStrategy.Auto,
     };
 
+    /// <summary>Chỉ áp dụng cho nguồn thư mục; nguồn .gp5 được BuildPreparer.Normalize ép về Gp5Project.</summary>
+    private static SourceMode SourceModeFromIndex(int index) => index == 1 ? SourceMode.Folder : SourceMode.Auto;
+
     // ===================== Chọn nguồn =====================
 
     [RelayCommand]
@@ -705,6 +894,22 @@ public sealed partial class MainViewModel : ObservableObject
             Loc.T("Pick.ExFat"),
             initial,
             new FilePickerFileType(Loc.T("Pick.ExFatFilter")) { Patterns = ["*.exfat"] },
+            new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] });
+        if (file != null)
+        {
+            SetSource(file);
+        }
+    }
+
+    [RelayCommand]
+    private async Task BrowseGp5Async()
+    {
+        var current = SourcePath.Trim();
+        var initial = File.Exists(current) ? Path.GetDirectoryName(current) : Directory.Exists(current) ? current : null;
+        var file = await _dialogs.PickFileAsync(
+            Loc.T("Pick.Gp5"),
+            initial,
+            new FilePickerFileType(Loc.T("Pick.Gp5Filter")) { Patterns = ["*.gp5"] },
             new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] });
         if (file != null)
         {
@@ -851,6 +1056,7 @@ public sealed partial class MainViewModel : ObservableObject
             _lastMetadata = metadata;
             _lastStats = null;
             ApplyMetadata(source, metadata);
+            ApplyProjectPasscode(metadata);
 
             if (metadata.HasParamJson && !string.Equals(_lastMetadataSource, source, StringComparison.OrdinalIgnoreCase))
             {
@@ -933,6 +1139,16 @@ public sealed partial class MainViewModel : ObservableObject
         return null;
     }
 
+    /// <summary>Dự án GP5 mang passcode 32 ký tự ASCII: điền vào trường Passcode ngay khi vừa đọc metadata (không đụng tới khi chỉ đổi ngôn ngữ).</summary>
+    private void ApplyProjectPasscode(SourceMetadata metadata)
+    {
+        if (metadata.IsGp5 && metadata.Gp5Passcode is { Length: BuildRequest.PasscodeLength } passcode &&
+            passcode.All(c => c < 128 && !char.IsControl(c)))
+        {
+            Passcode = passcode;
+        }
+    }
+
     private void ShowEmptyMetadata()
     {
         HasSource = false;
@@ -941,6 +1157,10 @@ public sealed partial class MainViewModel : ObservableObject
         IsExFatSource = false;
         MetaExFatChip = string.Empty;
         MetaExFatRoot = string.Empty;
+        IsGp5Source = false;
+        IsFolderSource = false;
+        MetaGp5Chip = string.Empty;
+        MetaGp5Root = string.Empty;
         MetaTitle = Loc.T("Meta.NoSource");
         MetaSubtitle = Loc.T("Meta.NoSourceHint");
         MetaVersion = string.Empty;
@@ -970,6 +1190,10 @@ public sealed partial class MainViewModel : ObservableObject
         MetaExFatRoot = metadata.IsExFat
             ? (string.IsNullOrEmpty(metadata.AppRootInImage) ? Loc.T("Meta.ExFatRootTop") : Loc.F("Meta.ExFatRoot", metadata.AppRootInImage))
             : string.Empty;
+        IsGp5Source = metadata.IsGp5;
+        IsFolderSource = !metadata.IsExFat && !metadata.IsGp5;
+        MetaGp5Chip = metadata.IsGp5 ? Loc.F("Meta.Gp5Chip", metadata.Gp5Layout ?? "—") : string.Empty;
+        MetaGp5Root = metadata.IsGp5 ? Loc.F("Meta.Gp5Root", metadata.Gp5RootFolder ?? "—") : string.Empty;
         MetaTitleId = metadata.TitleId ?? string.Empty;
         if (_lastStats == null)
         {
@@ -982,7 +1206,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             HasParamJson = false;
             MetadataWarning = true;
-            MetaTitle = Loc.T(metadata.IsExFat ? "Val.ExFatNoApp" : "Meta.NoSceSys");
+            MetaTitle = Loc.T(metadata.IsExFat ? "Val.ExFatNoApp" : metadata.IsGp5 ? "Val.Gp5NoParam" : "Meta.NoSceSys");
             MetaSubtitle = Loc.T("Meta.NoSceSysHint");
             MetaVersion = string.Empty;
             MetaSdk = string.Empty;
@@ -1135,6 +1359,13 @@ public sealed partial class MainViewModel : ObservableObject
         ImageMode = ImageModeIndex == 1 ? OuterImageMode.Native : OuterImageMode.PlaintextNoAuth,
         KrakenBackend = BackendFromIndex(BackendIndex),
         ExFat = ExFatFromIndex(ExFatIndex),
+        SourceMode = SourceModeFromIndex(SourceModeIndex),
+        PfsFormat = PfsIndex == 1 ? PfsFormat.V3 : PfsFormat.V2,
+        KrakenBlockKiB = BlockSizesKiB[Math.Clamp(BlockSizeIndex, 0, BlockSizesKiB.Length - 1)],
+        ShufflePattern = ShufflePatterns[Math.Clamp(ShuffleIndex, 0, ShufflePatterns.Length - 1)],
+        ShuffleAnalysis = ShuffleAnalysis,
+        SkipPfsInputCheck = SkipPfsCheck,
+        LayoutOptimization = LayoutOptimization,
         KrakenLevel = (int)Math.Round(KrakenLevel),
         Threads = (int)(Threads ?? 0),
         PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks),
@@ -1185,7 +1416,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ===================== Tạo gói =====================
 
-    private bool CanBuild => !IsBuilding;
+    private bool CanBuild => !IsBuilding && !IsExtractMode;
 
     [RelayCommand(CanExecute = nameof(CanBuild))]
     private async Task BuildAsync()
@@ -1270,6 +1501,7 @@ public sealed partial class MainViewModel : ObservableObject
         var token = _buildCancellation.Token;
 
         SetStatus(StatusKind.Working, "Status.Building");
+        ThroughputText = string.Empty;
         _phaseKey = "Phase.Preparing";
         PhaseText = Loc.T(_phaseKey) + "…";
         PercentText = "0%";
@@ -1392,6 +1624,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _metadataCancellation?.Cancel();
             SaveSettings();
+            Extraction.Shutdown();
             return true;
         }
 
@@ -1409,6 +1642,7 @@ public sealed partial class MainViewModel : ObservableObject
         _buildCancellation?.Cancel();
         _metadataCancellation?.Cancel();
         SaveSettings();
+        Extraction.Shutdown();
         return true;
     }
 
@@ -1531,6 +1765,7 @@ public sealed partial class MainViewModel : ObservableObject
         PhaseText = progress.IsComplete
             ? Loc.T("Phase.Done")
             : $"{progress.Phase} · {progress.PhasePercent:0}%";
+        ThroughputText = progress.IsComplete || string.IsNullOrEmpty(progress.Throughput) ? string.Empty : progress.Throughput!;
         UpdateEta();
     }
 

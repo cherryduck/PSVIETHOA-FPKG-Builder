@@ -88,6 +88,19 @@ public partial class MainWindow : Window
             }, TimeSpan.FromSeconds(1));
         }
 
+        // Chế độ giải nén khi khởi động (chụp màn hình/kiểm thử): PSVIETHOA_MODE=extract, PSVIETHOA_EXTRACT_PKG=/duong/dan.pkg
+        if (ViewModel != null && string.Equals(Environment.GetEnvironmentVariable("PSVIETHOA_MODE"), "extract", StringComparison.OrdinalIgnoreCase))
+        {
+            ViewModel.IsExtractMode = true;
+        }
+
+        var extractPackage = Environment.GetEnvironmentVariable("PSVIETHOA_EXTRACT_PKG");
+        if (ViewModel != null && !string.IsNullOrWhiteSpace(extractPackage))
+        {
+            ViewModel.IsExtractMode = true;
+            ViewModel.Extraction.LoadPackage(extractPackage);
+        }
+
         // Tự chạy một lần tạo gói, chụp màn hình giữa chừng và khi xong rồi thoát: PSVIETHOA_AUTOBUILD=/duong/dan/prefix
         var autoBuild = Environment.GetEnvironmentVariable("PSVIETHOA_AUTOBUILD");
         if (!string.IsNullOrWhiteSpace(autoBuild))
@@ -126,9 +139,15 @@ public partial class MainWindow : Window
 
     private void Capture(string path)
     {
-        if (Environment.GetEnvironmentVariable("PSVIETHOA_SCROLL") == "end")
+        var scrollHook = Environment.GetEnvironmentVariable("PSVIETHOA_SCROLL");
+        if (scrollHook == "end")
         {
             SettingsScroll.ScrollToEnd();
+            SettingsScroll.UpdateLayout();
+        }
+        else if (double.TryParse(scrollHook, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var offset))
+        {
+            SettingsScroll.Offset = new Avalonia.Vector(0, offset);
             SettingsScroll.UpdateLayout();
         }
 
@@ -279,7 +298,7 @@ public partial class MainWindow : Window
 
     // ===================== Kéo–thả =====================
 
-    /// <summary>Thư mục ứng dụng, tệp ảnh .exfat, hoặc tệp nằm trong thư mục ứng dụng (lấy thư mục cha).</summary>
+    /// <summary>Thư mục ứng dụng, tệp ảnh .exfat, tệp dự án .gp5, hoặc tệp nằm trong thư mục ứng dụng (lấy thư mục cha).</summary>
     private static string? GetDroppedSource(DragEventArgs e)
     {
         var items = e.Data.GetFiles();
@@ -301,7 +320,7 @@ public partial class MainWindow : Window
                 return path;
             }
 
-            if (File.Exists(path) && (SourceLocator.HasExFatExtension(path) || ExFatImage.IsExFatFile(path)))
+            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasExFatExtension(path) || ExFatImage.IsExFatFile(path)))
             {
                 return path;
             }

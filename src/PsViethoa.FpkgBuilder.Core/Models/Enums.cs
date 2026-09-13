@@ -52,6 +52,53 @@ public enum ExFatStrategy
     Extract,
 }
 
+/// <summary>Định dạng container nén PFS ghi vào ảnh (không phải phiên bản superblock PFS).</summary>
+public enum PfsFormat
+{
+    /// <summary>PFS v2 — mặc định, tương thích rộng; không có tuỳ chọn mở rộng.</summary>
+    V2,
+
+    /// <summary>PFS v3 — định dạng PS5 mới hơn: region hints, shuffle trước nén, dự đoán shuffle.</summary>
+    V3,
+}
+
+/// <summary>Mẫu shuffle byte trước khi nén Kraken (chỉ PFS v3). Tên trùng với ProsperoPfsShufflePattern của thư viện.</summary>
+public enum ShufflePatternKind
+{
+    None,
+    PredictForStructs,
+    PredictForBc1,
+    PredictForBc2,
+    PredictForBc3,
+    PredictForBc4,
+    PredictForBc5,
+    Shuffle11111111,
+    Shuffle116,
+    Shuffle116116,
+    Shuffle116224,
+    Shuffle224,
+    Shuffle26,
+    Shuffle2626,
+    Shuffle44,
+    Shuffle4444,
+    Shuffle8224,
+    Shuffle844,
+    Shuffle88,
+}
+
+/// <summary>Cách đọc nguồn: thư mục rời hay dự án GP5.</summary>
+public enum SourceMode
+{
+    /// <summary>Dùng GP5 ở gốc nếu có, nếu không dùng thư mục rời.</summary>
+    Auto,
+
+    /// <summary>Luôn dùng cây thư mục rời, bỏ qua GP5.</summary>
+    Folder,
+
+    /// <summary>Dùng đúng tệp dự án GP5 đã chỉ định.</summary>
+    Gp5Project,
+}
+
 /// <summary>Mức độ của một dòng nhật ký.</summary>
 public enum LogLevel
 {

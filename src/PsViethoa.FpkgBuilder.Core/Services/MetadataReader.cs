@@ -5,7 +5,7 @@ using PsViethoa.FpkgBuilder.Core.Models;
 
 namespace PsViethoa.FpkgBuilder.Core.Services;
 
-/// <summary>Đọc sce_sys/param.json, icon và các tệp PlayGo từ thư mục nguồn hoặc từ ảnh exFAT.</summary>
+/// <summary>Đọc sce_sys/param.json, icon và các tệp PlayGo từ thư mục nguồn, từ ảnh exFAT hoặc theo dự án GP5.</summary>
 public static class MetadataReader
 {
     private const long MaxParamJsonBytes = 8L * 1024 * 1024;
@@ -16,6 +16,7 @@ public static class MetadataReader
         return SourceLocator.Detect(sourcePath) switch
         {
             SourceKind.ExFatImage => ReadImage(sourcePath, cancellationToken),
+            SourceKind.Gp5Project => ReadGp5(sourcePath, cancellationToken),
             _ => ReadFolder(sourcePath, cancellationToken),
         };
     }
@@ -30,23 +31,7 @@ public static class MetadataReader
         var paramPath = Path.Combine(sceSys, "param.json");
         if (File.Exists(paramPath))
         {
-            metadata.HasParamJson = true;
-            metadata.ParamJsonPath = paramPath;
-            try
-            {
-                using var stream = File.OpenRead(paramPath);
-                ReadParamJson(stream, metadata);
-            }
-            catch (JsonException ex)
-            {
-                metadata.HasParamJson = false;
-                metadata.ParamJsonError = "param.json: " + ex.Message;
-            }
-            catch (IOException ex)
-            {
-                metadata.HasParamJson = false;
-                metadata.ParamJsonError = "param.json: " + ex.Message;
-            }
+            ReadParamFile(paramPath, metadata);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -123,6 +108,64 @@ public static class MetadataReader
         metadata.HasPlayGoFicm = system.ContainsKey("playgo-ficm.dat");
         metadata.HasPlayGoScenario = system.ContainsKey("playgo-scenario.json");
         return metadata;
+    }
+
+    /// <summary>Nguồn là dự án GP5: đọc param.json / icon / eboot / PlayGo theo các đường dẫn mà dự án phân giải.</summary>
+    private static SourceMetadata ReadGp5(string projectPath, CancellationToken cancellationToken)
+    {
+        var project = Gp5ProjectInfo.Load(projectPath);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var metadata = new SourceMetadata
+        {
+            IsGp5 = true,
+            Gp5Layout = project.Layout,
+            Gp5RootFolder = project.RootFolder,
+            Gp5VolumeType = project.VolumeType,
+            Gp5Passcode = project.Passcode is { Length: BuildRequest.PasscodeLength } passcode ? passcode : null,
+            HasEboot = project.HasEboot,
+            HasPlayGoChunk = project.HasPlayGoChunk,
+            HasPlayGoHashTable = project.HasPlayGoHashTable,
+            HasPlayGoFicm = project.HasPlayGoFicm,
+            HasPlayGoScenario = project.HasPlayGoScenario,
+        };
+
+        var paramPath = project.ParamJsonPath;
+        metadata.HasSceSys = paramPath != null && Directory.Exists(Path.GetDirectoryName(paramPath));
+        if (paramPath != null && File.Exists(paramPath))
+        {
+            ReadParamFile(paramPath, metadata);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (project.IconPath != null && File.Exists(project.IconPath))
+        {
+            metadata.IconPath = project.IconPath;
+        }
+
+        return metadata;
+    }
+
+    /// <summary>Đọc một tệp param.json trên đĩa; lỗi cú pháp/IO được ghi vào ParamJsonError thay vì ném ra.</summary>
+    private static void ReadParamFile(string paramPath, SourceMetadata metadata)
+    {
+        metadata.HasParamJson = true;
+        metadata.ParamJsonPath = paramPath;
+        try
+        {
+            using var stream = File.OpenRead(paramPath);
+            ReadParamJson(stream, metadata);
+        }
+        catch (JsonException ex)
+        {
+            metadata.HasParamJson = false;
+            metadata.ParamJsonError = "param.json: " + ex.Message;
+        }
+        catch (IOException ex)
+        {
+            metadata.HasParamJson = false;
+            metadata.ParamJsonError = "param.json: " + ex.Message;
+        }
     }
 
     private static void ReadParamJson(Stream stream, SourceMetadata metadata)

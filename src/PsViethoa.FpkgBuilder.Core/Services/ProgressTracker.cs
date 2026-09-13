@@ -17,10 +17,13 @@ public sealed class ProgressTracker
     private readonly object _gate = new();
     private readonly Queue<(double Seconds, double Overall)> _samples = new();
 
+    private readonly InnerDataEstimator _innerData = new();
+
     private int _index = -1;
     private double _phasePercent;
     private bool _complete;
     private double _smoothedRate;
+    private string? _throughput;
 
     public ProgressTracker(Stopwatch stopwatch, IReadOnlyList<BuildPhase> sequence)
     {
@@ -43,15 +46,35 @@ public sealed class ProgressTracker
     /// <summary>Cập nhật từ một dòng nhật ký của thư viện; trả về true nếu tiến trình thay đổi.</summary>
     public bool TryUpdate(string message, out BuildProgress snapshot)
     {
+        var stripped = PhaseCatalog.StripTimestamp(message).Trim();
+        bool estimated;
+        double estimate;
+        lock (_gate)
+        {
+            estimated = _innerData.TryObserve(stripped, out estimate);
+        }
+
         if (!PhaseCatalog.TryParse(message, out var phase, out var percent))
         {
-            snapshot = null!;
-            return false;
+            if (!estimated)
+            {
+                snapshot = null!;
+                return false;
+            }
+
+            phase = PhaseCatalog.InnerData;
+            percent = estimate;
         }
 
         lock (_gate)
         {
             Apply(phase, percent);
+            var rate = PhaseCatalog.ParseThroughput(message);
+            if (rate != null)
+            {
+                _throughput = rate;
+            }
+
             snapshot = Snapshot();
         }
 
@@ -100,6 +123,7 @@ public sealed class ProgressTracker
         {
             _index = target;
             _phasePercent = 0;
+            _throughput = null;
         }
         else if (target < _index)
         {
@@ -198,6 +222,7 @@ public sealed class ProgressTracker
             _stopwatch.Elapsed,
             EstimateRemaining(overall),
             Math.Max(0, _index + 1),
-            _complete);
+            _complete,
+            _complete ? null : _throughput);
     }
 }

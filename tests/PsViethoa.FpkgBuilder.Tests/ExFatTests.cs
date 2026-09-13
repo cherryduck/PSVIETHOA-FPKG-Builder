@@ -244,6 +244,34 @@ public sealed class ExFatTests : IDisposable
     }
 
     [Fact]
+    public async Task Engine_BuildsPfsV3PackageWithShuffleAnalysis()
+    {
+        if (!BuildEngine.KeysAvailable)
+        {
+            return;
+        }
+
+        var request = new BuildRequest
+        {
+            SourcePath = Fixture("small-bare.exfat"),
+            OutputFolder = Path.Combine(_root, "out-v3"),
+            TemporaryFolder = Path.Combine(_root, "tmp-v3"),
+            ContentId = "UP9000-PPSA00002_00-PSVIETHOAEXFAT01",
+            ExFat = ExFatStrategy.Extract,
+            KrakenBackend = KrakenBackendKind.BuiltIn,
+            PreventSleep = false,
+        };
+        BuildPresets.Apply(BuildPresets.Maximum, request);
+
+        var log = new List<LogEntry>();
+        var outcome = await new BuildEngine().BuildAsync(request, log.Add, null, CancellationToken.None);
+        Assert.True(File.Exists(outcome.OutputPath));
+        Assert.Equal("FullDebug", outcome.Verification.ContainerType);
+        Assert.Contains(log, e => e.Message.Contains("PFS compression format: v3", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(log, e => e.Message.Contains("shuffle analysis=enabled", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Engine_BuildsPackageFromExFatImageByMounting()
     {
         if (!BuildEngine.KeysAvailable || !ExFatMounter.IsAvailable)

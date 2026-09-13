@@ -36,7 +36,8 @@ public sealed record BuildProgress(
     TimeSpan Elapsed,
     TimeSpan? Eta,
     int PhaseNumber,
-    bool IsComplete);
+    bool IsComplete,
+    string? Throughput = null);
 
 /// <summary>Thống kê thư mục nguồn.</summary>
 public sealed record FolderStats(
@@ -62,7 +63,12 @@ public sealed record DiskSpaceReport(
 public sealed record ValidationError(string Field, string Message);
 
 /// <summary>Cấu hình tốc độ/nén đóng gói sẵn (tên/mô tả lấy từ bảng chuỗi theo Id).</summary>
-public sealed record BuildPreset(string Id, KrakenBackendKind Backend, int KrakenLevel)
+public sealed record BuildPreset(
+    string Id,
+    KrakenBackendKind Backend,
+    int KrakenLevel,
+    PfsFormat PfsFormat = PfsFormat.V2,
+    bool ShuffleAnalysis = false)
 {
     public string Name => Localization.Loc.T($"Preset.{Id}.Name");
 

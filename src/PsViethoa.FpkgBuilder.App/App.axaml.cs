@@ -18,6 +18,13 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        if (DebugLog.Enabled)
+        {
+            // LogToTrace() chỉ ghi vào System.Diagnostics.Trace (không có sink mặc định): khi PSVIETHOA_DEBUG=1 đưa cảnh báo
+            // binding/XAML của Avalonia ra stderr để kiểm tra giao diện bằng các hook chụp màn hình.
+            System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.TextWriterTraceListener(Console.Error));
+        }
+
         var settings = SettingsService.Load();
         Core.Localization.Loc.Current.SetLanguage(settings.Language);
         RequestedThemeVariant = settings.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;

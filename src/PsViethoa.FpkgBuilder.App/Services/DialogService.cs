@@ -105,6 +105,29 @@ public sealed class DialogService
         return false;
     }
 
+    /// <summary>Mở một tệp bằng ứng dụng mặc định của hệ điều hành.</summary>
+    public async Task<bool> OpenFileAsync(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            var launcher = TopLevel.GetTopLevel(_owner)?.Launcher;
+            if (launcher != null)
+            {
+                return await launcher.LaunchFileInfoAsync(new FileInfo(path));
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return false;
+    }
+
     public async Task<bool> OpenUriAsync(string uri)
     {
         try

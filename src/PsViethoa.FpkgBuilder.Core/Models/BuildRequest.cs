@@ -6,12 +6,15 @@ public sealed class BuildRequest
     public const int PasscodeLength = 32;
     public const int MinKrakenLevel = -4;
     public const int MaxKrakenLevel = 9;
-    public const int DefaultKrakenLevel = 7;
+    public const int DefaultKrakenLevel = 4;
     public const int MaxThreads = 256;
     public const int MinPlayGoChunks = 1;
     public const int MaxPlayGoChunks = 64;
     public const int MinSdkMajor = 1;
     public const int MaxSdkMajor = 11;
+    public const int MinKrakenBlockKiB = 128;
+    public const int MaxKrakenBlockKiB = 256;
+    public const int DefaultKrakenBlockKiB = 256;
 
     /// <summary>Thư mục ứng dụng (chứa sce_sys) hoặc tệp ảnh đĩa exFAT (.exfat).</summary>
     public string SourcePath { get; set; } = string.Empty;
@@ -43,6 +46,33 @@ public sealed class BuildRequest
 
     /// <summary>Số luồng nén; 0 = số nhân CPU logic.</summary>
     public int Threads { get; set; }
+
+    /// <summary>Định dạng container nén PFS (v2 mặc định, v3 mở các tuỳ chọn shuffle).</summary>
+    public PfsFormat PfsFormat { get; set; } = PfsFormat.V2;
+
+    /// <summary>Kích thước khối nén Kraken, KiB (128..256; 256 = mặc định SDK).</summary>
+    public int KrakenBlockKiB { get; set; } = DefaultKrakenBlockKiB;
+
+    /// <summary>Mẫu shuffle trước nén (chỉ có tác dụng với PFS v3).</summary>
+    public ShufflePatternKind ShufflePattern { get; set; } = ShufflePatternKind.None;
+
+    /// <summary>Tự đánh giá mọi mẫu shuffle trong lúc nén và chọn mẫu tốt nhất (PFS v3).</summary>
+    public bool ShuffleAnalysis { get; set; }
+
+    /// <summary>Mức Kraken dùng để phân giải bí danh shuffle dự đoán; null = tự động theo SDK (PFS v3).</summary>
+    public int? ShufflePredictionLevel { get; set; }
+
+    /// <summary>Bỏ kiểm tra tương thích input-header PFS v3 (chuyên gia).</summary>
+    public bool SkipPfsInputCheck { get; set; }
+
+    /// <summary>Gộp khối và điều chỉnh canh lề bố cục vật lý như Publishing Tools (khuyên bật).</summary>
+    public bool LayoutOptimization { get; set; } = true;
+
+    /// <summary>Cách đọc nguồn (thư mục rời / GP5).</summary>
+    public SourceMode SourceMode { get; set; } = SourceMode.Auto;
+
+    /// <summary>Tệp dự án GP5 khi SourceMode = Gp5Project.</summary>
+    public string? ProjectFilePath { get; set; }
 
     public int PlayGoChunks { get; set; } = MaxPlayGoChunks;
 

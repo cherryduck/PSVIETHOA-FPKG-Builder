@@ -29,15 +29,46 @@ public static class FolderScanner
 
     private readonly record struct Entry(bool IsDirectory, long Length, string? Path);
 
-    /// <summary>Thống kê nguồn: thư mục (quét song song) hoặc ảnh exFAT (duyệt bảng thư mục, không đọc dữ liệu).</summary>
+    /// <summary>
+    /// Thống kê nguồn: thư mục (quét song song), ảnh exFAT (duyệt bảng thư mục, không đọc dữ liệu)
+    /// hoặc dự án GP5 (chỉ những tệp dự án sẽ đóng gói).
+    /// </summary>
     public static FolderStats Scan(string sourcePath, CancellationToken cancellationToken)
     {
-        if (SourceLocator.Detect(sourcePath) == SourceKind.ExFatImage)
+        switch (SourceLocator.Detect(sourcePath))
         {
-            return ScanImage(sourcePath, cancellationToken);
+            case SourceKind.ExFatImage:
+                return ScanImage(sourcePath, cancellationToken);
+            case SourceKind.Gp5Project:
+                return ScanGp5(sourcePath, cancellationToken);
+            default:
+                return ScanFolder(sourcePath, cancellationToken);
+        }
+    }
+
+    /// <summary>Thống kê dự án GP5: tệp/dung lượng theo danh sách đóng gói; số thư mục = số thư mục đích khác nhau.</summary>
+    private static FolderStats ScanGp5(string projectPath, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        long files = 0, bytes = 0, largest = 0;
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var project = Gp5ProjectInfo.Load(projectPath);
+        foreach (var entry in project.EnumerateFiles())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            files++;
+            bytes += entry.Length;
+            largest = Math.Max(largest, entry.Length);
+
+            var slash = entry.DestinationPath.LastIndexOf('/');
+            while (slash > 0)
+            {
+                directories.Add(entry.DestinationPath[..slash]);
+                slash = entry.DestinationPath.LastIndexOf('/', slash - 1);
+            }
         }
 
-        return ScanFolder(sourcePath, cancellationToken);
+        return new FolderStats(files, directories.Count, bytes, largest, stopwatch.Elapsed);
     }
 
     private static FolderStats ScanImage(string imagePath, CancellationToken cancellationToken)

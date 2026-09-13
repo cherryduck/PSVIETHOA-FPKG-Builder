@@ -16,6 +16,21 @@ public sealed class SourceMetadata
     /// <summary>Nội dung icon0.png khi nguồn là ảnh exFAT (không có tệp trên đĩa).</summary>
     public byte[]? IconBytes { get; set; }
 
+    /// <summary>Nguồn là tệp dự án GP5 (.gp5).</summary>
+    public bool IsGp5 { get; set; }
+
+    /// <summary>Bố cục dự án GP5: "Normal" (rootdir đi đệ quy) hoặc "Flat" (liệt kê tường minh).</summary>
+    public string? Gp5Layout { get; set; }
+
+    /// <summary>Thư mục ứng dụng mà dự án GP5 trỏ tới (đã phân giải; null nếu dự án Flat không liệt kê sce_sys/param.json).</summary>
+    public string? Gp5RootFolder { get; set; }
+
+    /// <summary>Loại volume trong dự án GP5 (prospero_app, prospero_patch, prospero_ac, prospero_al).</summary>
+    public string? Gp5VolumeType { get; set; }
+
+    /// <summary>Passcode 32 ký tự ghi trong dự án GP5 (null nếu không có hoặc sai độ dài).</summary>
+    public string? Gp5Passcode { get; set; }
+
     public bool HasParamJson { get; set; }
 
     public string? ParamJsonPath { get; set; }

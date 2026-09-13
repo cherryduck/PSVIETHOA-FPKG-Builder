@@ -11,25 +11,27 @@ public sealed record BuildPhase(string Key, double Weight, int Order)
 
 /// <summary>
 /// Nhận diện giai đoạn và phần trăm từ các dòng nhật ký của LibProsperoPkg 1.2.
-/// Trọng số được hiệu chỉnh từ đo đạc thực tế: nén Kraken ảnh trong chiếm phần lớn thời gian với gói lớn.
+/// Trọng số được hiệu chỉnh từ đo đạc thực tế (game 21 GB, Kraken 7): nén ảnh trong chiếm ~98% thời gian,
+/// ghi PFS ngoài + SHA3 ~1%, phần còn lại là khoá/CNT/ghi tệp.
 /// </summary>
 public static partial class PhaseCatalog
 {
     public static readonly BuildPhase Mount = new("mount", 0.5, -2);
     public static readonly BuildPhase Extract = new("extract", 8, -1);
     public static readonly BuildPhase Prepare = new("prepare", 1, 0);
-    public static readonly BuildPhase InnerRead = new("inner-read", 2, 1);
-    public static readonly BuildPhase InnerData = new("inner-data", 66, 2);
-    public static readonly BuildPhase Naps = new("naps", 1, 3);
-    public static readonly BuildPhase Outer = new("outer", 14, 4);
-    public static readonly BuildPhase Keys = new("keys", 2, 5);
-    public static readonly BuildPhase Cnt = new("cnt", 1, 6);
-    public static readonly BuildPhase Finalize = new("finalize", 8, 7);
+    public static readonly BuildPhase InnerRead = new("inner-read", 1.5, 1);
+    public static readonly BuildPhase InnerData = new("inner-data", 85, 2);
+    public static readonly BuildPhase Layout = new("layout", 0.5, 3);
+    public static readonly BuildPhase Naps = new("naps", 0.5, 3);
+    public static readonly BuildPhase Outer = new("outer", 5, 4);
+    public static readonly BuildPhase Keys = new("keys", 1.5, 5);
+    public static readonly BuildPhase Cnt = new("cnt", 0.5, 6);
+    public static readonly BuildPhase Finalize = new("finalize", 3, 7);
     public static readonly BuildPhase Verify = new("verify", 1, 8);
     public static readonly BuildPhase Sha256 = new("sha256", 6, 9);
 
     public static IReadOnlyList<BuildPhase> LibraryPhases { get; } =
-        [Prepare, InnerRead, InnerData, Naps, Outer, Keys, Cnt, Finalize];
+        [Prepare, InnerRead, InnerData, Layout, Naps, Outer, Keys, Cnt, Finalize];
 
     /// <summary>Chuỗi giai đoạn đầy đủ cho một lần tạo gói (kèm bước chuẩn bị ảnh exFAT và kiểm tra của ứng dụng).</summary>
     public static IReadOnlyList<BuildPhase> Sequence(bool computeSha256, BuildPhase? exFatPhase = null)
@@ -68,6 +70,19 @@ public static partial class PhaseCatalog
     [GeneratedRegex(@":\s*(?<pct>\d{1,3})%", RegexOptions.CultureInvariant)]
     private static partial Regex GenericPercent();
 
+    [GeneratedRegex(@"^\[inner\]\s+(?<what>Inner size planning|Inode and AFID planning|Inner layout planning|Inner layout validation|Inner data compression and write):\s*(?:(?<pct>\d{1,3})%|(?<state>started|complete))", RegexOptions.CultureInvariant)]
+    private static partial Regex InnerSubPhasePattern();
+
+    [GeneratedRegex(@";\s*(?<rate>\d+(?:\.\d+)?\s*(?:[KMG]i?B)/s)\)", RegexOptions.CultureInvariant)]
+    private static partial Regex ThroughputPattern();
+
+    /// <summary>Đọc tốc độ "N MiB/s" nếu dòng nhật ký có ghi.</summary>
+    public static string? ParseThroughput(string rawMessage)
+    {
+        var match = ThroughputPattern().Match(rawMessage);
+        return match.Success ? match.Groups["rate"].Value.Replace("  ", " ") : null;
+    }
+
     /// <summary>Bỏ tiền tố thời gian tương đối "[+00:00:04.543]" của thư viện.</summary>
     public static string StripTimestamp(string message)
     {
@@ -88,11 +103,46 @@ public static partial class PhaseCatalog
 
         if (message.StartsWith("[inner]", StringComparison.Ordinal))
         {
+            var sub = InnerSubPhasePattern().Match(message);
+            if (sub.Success)
+            {
+                var what = sub.Groups["what"].Value;
+                double? pct = sub.Groups["pct"].Success ? ParsePercent(sub.Groups["pct"].Value)
+                    : sub.Groups["state"].Value == "complete" ? 100 : 0;
+                switch (what)
+                {
+                    case "Inner size planning":
+                        phase = InnerRead;
+                        percent = 33 + pct / 3;
+                        return true;
+                    case "Inode and AFID planning":
+                        phase = InnerRead;
+                        percent = 66 + pct / 3;
+                        return true;
+                    case "Inner data compression and write":
+                        phase = InnerData;
+                        percent = pct >= 100 ? 100 : 0;
+                        return true;
+                    default:
+                        phase = Layout;
+                        percent = what == "Inner layout validation" ? Math.Max(50, pct ?? 0) : pct;
+                        return true;
+                }
+            }
+
             var read = InnerReadPattern().Match(message);
             if (read.Success)
             {
                 phase = InnerRead;
-                percent = ParsePercent(read.Groups["pct"].Value);
+                percent = ParsePercent(read.Groups["pct"].Value) / 3;
+                return true;
+            }
+
+            if (message.StartsWith("[inner] Inner compression cache", StringComparison.Ordinal) ||
+                message.StartsWith("[inner] Large combined writes", StringComparison.Ordinal))
+            {
+                phase = InnerData;
+                percent = 100;
                 return true;
             }
 
@@ -142,7 +192,7 @@ public static partial class PhaseCatalog
             switch (number)
             {
                 case 1:
-                    phase = complete ? InnerData : InnerRead;
+                    phase = complete ? Layout : InnerRead;
                     percent = complete ? 100 : 0;
                     return true;
                 case 2:
@@ -172,11 +222,25 @@ public static partial class PhaseCatalog
             }
         }
 
+        if (message.StartsWith("Source tree scan:", StringComparison.OrdinalIgnoreCase))
+        {
+            phase = Prepare;
+            percent = message.Contains("complete", StringComparison.OrdinalIgnoreCase) ? 100 : 0;
+            return true;
+        }
+
         if (message.StartsWith("Source scan:", StringComparison.OrdinalIgnoreCase) ||
             message.StartsWith("Building the PS5 package", StringComparison.OrdinalIgnoreCase))
         {
             phase = Prepare;
             percent = 100;
+            return true;
+        }
+
+        if (message.StartsWith("Flushing finalized FIH image", StringComparison.OrdinalIgnoreCase))
+        {
+            phase = Finalize;
+            percent = message.Contains("complete", StringComparison.OrdinalIgnoreCase) ? 100 : null;
             return true;
         }
 

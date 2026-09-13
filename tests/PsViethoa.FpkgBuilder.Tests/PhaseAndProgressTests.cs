@@ -7,10 +7,10 @@ namespace PsViethoa.FpkgBuilder.Tests;
 public class PhaseAndProgressTests
 {
     [Theory]
-    [InlineData("[+00:00:00.029]  [inner]   read 11/208 (  5%): /data/small/file_003.txt (52 bytes)", "inner-read", 5.0)]
+    [InlineData("[+00:00:00.029]  [inner]   read 11/208 (  5%): /data/small/file_003.txt (52 bytes)", "inner-read", 5 / 3.0)]
     [InlineData("[+00:00:00.500]  [inner]   data 40% (3/5): /eboot.bin -> 1,000 bytes (Kraken, ratio 50.0 %)", "inner-data", 40.0)]
     [InlineData("[+00:00:00.071]  [inner] Compressing and writing AFID-ordered inner data with 15 built-in Kraken worker(s)...", "inner-data", 0.0)]
-    [InlineData("[+00:00:00.923] [stage 1/5] Inner image complete: 25,755,648 bytes in 00:00:00.896.", "inner-data", 100.0)]
+    [InlineData("[+00:00:00.923] [stage 1/5] Inner image complete: 25,755,648 bytes in 00:00:00.896.", "layout", 100.0)]
     [InlineData("[+00:00:00.923] [stage 2/5] Generating NAPS file, block and integrity tables...", "naps", 0.0)]
     [InlineData("[+00:00:00.956] [stage 3/5] Writing and hashing outer-PFS data (15 worker(s)): 10% (2.5 MiB / 24.6 MiB).", "outer", 10.0)]
     [InlineData("[+00:00:00.942] [stage 3/5] Writing and hashing outer-PFS data (15 worker(s)): started (24.6 MiB total).", "outer", 0.0)]
@@ -18,6 +18,14 @@ public class PhaseAndProgressTests
     [InlineData("[+00:00:04.516] [stage 4/5] Writing CNT bodies and outer image (13 entries)...", "cnt", 0.0)]
     [InlineData("[+00:00:04.543] [finalize] NAPS plaintext integrity tables (SHA3/ihsh/rhsh): 30% (119 / 394 blocks).", "finalize", 30.0)]
     [InlineData("[+00:00:04.562] Build finished in 00:00:04.562; output 26,696,230 bytes (25.46 MiB), warnings=0.", "finalize", 100.0)]
+    [InlineData("[+00:00:00.020] Source tree scan: complete. 205 files, 43,006,817 bytes.", "prepare", 100.0)]
+    [InlineData("[+00:00:00.100] [inner] Inner size planning: 50% (103/206 files).", "inner-read", 33 + 50 / 3.0)]
+    [InlineData("[+00:00:00.120] [inner] Inode and AFID planning: 100% (206/206 AFIDs assigned).", "inner-read", 66 + 100 / 3.0)]
+    [InlineData("[+00:00:00.130] [inner] Inner data compression and write: started.", "inner-data", 0.0)]
+    [InlineData("[+00:00:00.900] [inner] Inner compression cache: 2 reused block(s), 363 miss(es), 0 eviction(s), 0 bypass(es); peak budget 6.8 MiB / 64.0 MiB.", "inner-data", 100.0)]
+    [InlineData("[+00:00:00.910] [inner] Inner layout planning: 50% (validating NAPS/U2C capacity).", "layout", 50.0)]
+    [InlineData("[+00:00:00.923] [stage 1/5] Inner image complete: 25,755,648 bytes in 00:00:00.896.", "layout", 100.0)]
+    [InlineData("[+00:00:04.590] Flushing finalized FIH image to disk: complete.", "finalize", 100.0)]
     public void TryParse_RecognisesLibraryProgressLines(string line, string expectedKey, double expectedPercent)
     {
         Assert.True(PhaseCatalog.TryParse(line, out var phase, out var percent));
@@ -79,6 +87,56 @@ public class PhaseAndProgressTests
         Assert.True(done.IsComplete);
         Assert.Equal(100, done.OverallPercent);
         Assert.Equal(TimeSpan.Zero, done.Eta);
+    }
+
+    [Fact]
+    public void Tracker_EstimatesInnerCompressionFromLargeFileLines()
+    {
+        var tracker = new ProgressTracker(Stopwatch.StartNew(), PhaseCatalog.Sequence(false));
+        Assert.False(tracker.TryUpdate("[+0] [inner] Planning nwonly inner image: 133 files, 1,000 uncompressed bytes.", out _));
+        Assert.True(tracker.TryUpdate("[+0] [inner] Inner data compression and write: started.", out var started));
+        Assert.Equal(PhaseCatalog.InnerData.Name, started.Phase);
+        Assert.Equal(0, started.PhasePercent);
+
+        Assert.False(tracker.TryUpdate("[+0] [inner]     processing large file: /game/big.ucas (600 bytes)", out _));
+        Assert.True(tracker.TryUpdate("[+0] [inner]     Kraken level 7:  50% of /game/big.ucas", out var half));
+        Assert.Equal(PhaseCatalog.InnerData.Name, half.Phase);
+        Assert.Equal(30, half.PhasePercent, 0.01);
+
+        Assert.False(tracker.TryUpdate("[+0] [inner]     processing large file: /game/second.pak (300 bytes)", out _));
+        Assert.True(tracker.TryUpdate("[+0] [inner]     Kraken level 7: 100% of /game/big.ucas", out var big));
+        Assert.Equal(60, big.PhasePercent, 0.01);
+        Assert.True(tracker.TryUpdate("[+0] [inner]     Kraken level 7: 100% of /game/second.pak", out var second));
+        Assert.Equal(90, second.PhasePercent, 0.01);
+
+        // Tệp không được báo trước ("large") thì bỏ qua, và thư viện mới là bên khép giai đoạn ở 100%.
+        Assert.False(tracker.TryUpdate("[+0] [inner]     Kraken level 7:  10% of /game/unknown.bin", out _));
+        Assert.True(tracker.TryUpdate("[+0] [inner] Inner compression cache: 2 reused block(s), 363 miss(es).", out var done));
+        Assert.Equal(100, done.PhasePercent);
+    }
+
+    [Fact]
+    public void InnerDataEstimator_NeverReportsWithoutTotal()
+    {
+        var estimator = new InnerDataEstimator();
+        Assert.False(estimator.TryObserve("[inner]     processing large file: /a.bin (100 bytes)", out _));
+        Assert.False(estimator.TryObserve("[inner]     Kraken level 7:  50% of /a.bin", out _));
+        Assert.False(estimator.TryObserve("[inner] Preparing 3 inner files (200 bytes)...", out _));
+        Assert.True(estimator.TryObserve("[inner]     Kraken level 7:  100% of /a.bin", out var pct));
+        Assert.Equal(50, pct, 0.01);
+        Assert.Equal(200, estimator.TotalBytes);
+    }
+
+    [Fact]
+    public void ParseThroughput_ReadsRateFromProgressLines()
+    {
+        Assert.Equal("58.2 MiB/s", PhaseCatalog.ParseThroughput("[+00:00:00.956] [stage 3/5] Writing and hashing outer-PFS data (15 worker(s)): 10% (2.5 MiB / 24.6 MiB; 58.2 MiB/s)."));
+        Assert.Null(PhaseCatalog.ParseThroughput("[+00:00:00.956] [stage 3/5] Writing and hashing outer-PFS data (15 worker(s)): 10% (2.5 MiB / 24.6 MiB)."));
+
+        var tracker = new ProgressTracker(Stopwatch.StartNew(), PhaseCatalog.Sequence(false));
+        tracker.TryUpdate("[+0] [stage 3/5] Writing and hashing outer-PFS data (15 worker(s)): 10% (2.5 MiB / 24.6 MiB; 58.2 MiB/s).", out var snapshot);
+        Assert.Equal("58.2 MiB/s", snapshot.Throughput);
+        Assert.Null(tracker.Complete().Throughput);
     }
 
     [Fact]

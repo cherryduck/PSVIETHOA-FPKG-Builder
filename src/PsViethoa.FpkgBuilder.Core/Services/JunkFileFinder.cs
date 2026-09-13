@@ -50,15 +50,18 @@ public static class JunkFileFinder
         return false;
     }
 
-    /// <summary>Tìm tệp rác trong thư mục hoặc bên trong ảnh exFAT (các mục trong ảnh là chỉ đọc).</summary>
+    /// <summary>Tìm tệp rác trong thư mục hoặc bên trong ảnh exFAT (các mục trong ảnh là chỉ đọc). Dự án GP5 không quét (chỉ đóng gói tệp được liệt kê).</summary>
     public static IReadOnlyList<JunkFile> Find(string sourcePath, CancellationToken cancellationToken)
     {
-        if (SourceLocator.Detect(sourcePath) == SourceKind.ExFatImage)
+        switch (SourceLocator.Detect(sourcePath))
         {
-            return FindInImage(sourcePath, cancellationToken);
+            case SourceKind.ExFatImage:
+                return FindInImage(sourcePath, cancellationToken);
+            case SourceKind.Gp5Project:
+                return Array.Empty<JunkFile>();
+            default:
+                return FindInFolder(sourcePath, cancellationToken);
         }
-
-        return FindInFolder(sourcePath, cancellationToken);
     }
 
     private static IReadOnlyList<JunkFile> FindInImage(string imagePath, CancellationToken cancellationToken)

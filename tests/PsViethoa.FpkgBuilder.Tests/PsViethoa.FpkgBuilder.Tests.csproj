@@ -14,6 +14,10 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/PsViethoa.FpkgBuilder.Core/PsViethoa.FpkgBuilder.Core.csproj" />
+    <Reference Include="LibProsperoPkg">
+      <HintPath>$(MSBuildThisFileDirectory)../../libs/LibProsperoPkg.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

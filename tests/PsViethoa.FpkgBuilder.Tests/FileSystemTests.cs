@@ -139,10 +139,56 @@ public class FileSystemTests : IDisposable
     [Fact]
     public void Presets_MapToLevels()
     {
+        Assert.Equal(BuildPresets.Balanced, BuildPresets.Default);
+        Assert.Equal(BuildRequest.DefaultKrakenLevel, BuildPresets.Default.KrakenLevel);
         Assert.Equal(BuildPresets.Fast, BuildPresets.Match(KrakenBackendKind.Auto, 2));
         Assert.Null(BuildPresets.Match(KrakenBackendKind.Auto, 5));
+        Assert.Null(BuildPresets.Match(KrakenBackendKind.Auto, 9));
+        Assert.Equal(BuildPresets.Maximum, BuildPresets.Match(KrakenBackendKind.Auto, 9, PfsFormat.V3, shuffleAnalysis: true));
         var request = new BuildRequest();
         BuildPresets.Apply(BuildPresets.Smallest, request);
         Assert.Equal(7, request.KrakenLevel);
+        Assert.Equal(PfsFormat.V2, request.PfsFormat);
+        request.ShufflePattern = ShufflePatternKind.Shuffle116;
+        BuildPresets.Apply(BuildPresets.Maximum, request);
+        Assert.Equal(9, request.KrakenLevel);
+        Assert.Equal(PfsFormat.V3, request.PfsFormat);
+        Assert.True(request.ShuffleAnalysis);
+        // Preset không giữ mẫu shuffle cố định — nếu giữ, Match() sẽ không nhận ra preset vừa áp dụng.
+        Assert.Equal(ShufflePatternKind.None, request.ShufflePattern);
+        Assert.Equal(BuildPresets.Balanced, BuildPresets.ById("sony"));
+        Assert.Equal(BuildPresets.Balanced, BuildPresets.ById("STANDARD"));
+        Assert.Null(BuildPresets.ById("nope"));
+        Assert.Equal("Shuffle 1-1-6 · stride 8", BuildPresets.ShufflePatternLabel(ShufflePatternKind.Shuffle116));
+        Assert.Equal("Shuffle 4-4-4-4 · stride 16", BuildPresets.ShufflePatternLabel(ShufflePatternKind.Shuffle4444));
+    }
+
+    [Fact]
+    public void BuildPreparer_ValidatesNewCompressionOptions()
+    {
+        var request = new BuildRequest
+        {
+            SourcePath = Path.Combine(_root, "src"),
+            OutputFolder = Path.Combine(_root, "out"),
+            ContentId = "UP9000-PPSA00001_00-PSVIETHOATEST001",
+            KrakenBackend = KrakenBackendKind.BuiltIn,
+            KrakenBlockKiB = 64,
+            ShufflePredictionLevel = 12,
+            SourceMode = SourceMode.Gp5Project,
+        };
+
+        var errors = BuildPreparer.Validate(request);
+        Assert.Contains(errors, e => e.Field == BuildPreparer.FieldKrakenBlock);
+        Assert.Contains(errors, e => e.Field == BuildPreparer.FieldShuffle);
+        Assert.Contains(errors, e => e.Field == BuildPreparer.FieldProject);
+
+        request.KrakenBlockKiB = 128;
+        request.ShufflePredictionLevel = null;
+        request.SourceMode = SourceMode.Auto;
+        Assert.Empty(BuildPreparer.Validate(request));
+
+        var options = BuildEngine.CreateOptions(request, request.SourcePath, KrakenBackendKind.BuiltIn, null, CancellationToken.None);
+        Assert.Equal(128 * 1024, options.KrakenCompressionBlockSize);
+        Assert.Equal(LibProsperoPkg.PFS.Compression.ProsperoPfsCompressionFormat.Version2, options.PfsCompressionFormat);
     }
 }

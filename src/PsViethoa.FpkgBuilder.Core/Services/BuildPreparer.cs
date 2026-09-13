@@ -19,13 +19,25 @@ public static class BuildPreparer
     public const string FieldKrakenLevel = "KrakenLevel";
     public const string FieldPublishingTools = "PublishingTools";
     public const string FieldExFat = "ExFat";
+    public const string FieldKrakenBlock = "KrakenBlock";
+    public const string FieldShuffle = "Shuffle";
+    public const string FieldProject = "Project";
 
-    /// <summary>Gợi ý thư mục xuất: cạnh nguồn, tên "&lt;nguồn&gt;-pkg" (bỏ đuôi .exfat nếu là ảnh).</summary>
+    /// <summary>
+    /// Gợi ý thư mục xuất: cạnh nguồn, tên "&lt;nguồn&gt;-pkg" (bỏ đuôi .exfat/.gp5 nếu là tệp).
+    /// Với dự án .gp5, thư viện coi thư mục chứa tệp .gp5 là thư mục nguồn và từ chối xuất vào bên trong nó,
+    /// nên gợi ý được đặt cạnh thư mục đó.
+    /// </summary>
     public static string SuggestOutputFolder(string sourcePath)
     {
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourcePath));
         var parent = Directory.GetParent(full)?.FullName ?? full;
         var name = File.Exists(full) ? Path.GetFileNameWithoutExtension(full) : Path.GetFileName(full);
+        if (File.Exists(full) && SourceLocator.HasGp5Extension(full))
+        {
+            parent = Directory.GetParent(parent)?.FullName ?? parent;
+        }
+
         return Path.Combine(parent, name + "-pkg");
     }
 
@@ -82,6 +94,15 @@ public static class BuildPreparer
 
         result.TemporaryFolder = FullPathOrEmpty(temporary);
         result.PublishingToolsPath = string.IsNullOrWhiteSpace(request.PublishingToolsPath) ? null : FullPathOrEmpty(request.PublishingToolsPath);
+        result.ProjectFilePath = string.IsNullOrWhiteSpace(request.ProjectFilePath) ? null : FullPathOrEmpty(request.ProjectFilePath);
+
+        // Nguồn là tệp .gp5: luôn dùng đúng dự án đó (thư viện nhận ProjectFilePath = tệp, SourceFolder = thư mục chứa tệp).
+        if (SourceLocator.Detect(result.SourcePath) == SourceKind.Gp5Project)
+        {
+            result.SourceMode = SourceMode.Gp5Project;
+            result.ProjectFilePath = result.SourcePath;
+        }
+
         return result;
     }
 
@@ -92,6 +113,7 @@ public static class BuildPreparer
         var normalized = Normalize(request);
 
         var kind = SourceLocator.Detect(normalized.SourcePath);
+        string? gp5Root = null;
         switch (kind)
         {
             case SourceKind.None:
@@ -124,20 +146,62 @@ public static class BuildPreparer
                 }
 
                 break;
+            case SourceKind.Gp5Project:
+                try
+                {
+                    var project = Gp5ProjectInfo.Load(normalized.SourcePath);
+                    gp5Root = project.RootFolder;
+                    if (project.ParamJsonPath == null || !File.Exists(project.ParamJsonPath))
+                    {
+                        errors.Add(new ValidationError(FieldSource, Loc.T("Val.Gp5NoParam")));
+                    }
+                }
+                catch (InvalidDataException ex)
+                {
+                    errors.Add(new ValidationError(FieldSource, ex.Message));
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new ValidationError(FieldSource, Loc.T("Val.Gp5Invalid") + " " + ex.Message));
+                }
+
+                break;
+        }
+
+        // Các thư mục không được chứa thư mục xuất/tạm: thư mục nguồn; với dự án GP5 là thư mục ứng dụng mà dự án
+        // trỏ tới và thư mục chứa tệp .gp5 (thư viện coi thư mục đó là SourceFolder và từ chối xuất/tạm bên trong).
+        var protectedRoots = new List<(string Root, string OutputKey, string TempKey)>();
+        switch (kind)
+        {
+            case SourceKind.Folder:
+                protectedRoots.Add((normalized.SourcePath, "Val.OutputInsideSource", "Val.TempInsideSource"));
+                break;
+            case SourceKind.Gp5Project:
+                if (gp5Root != null)
+                {
+                    protectedRoots.Add((gp5Root, "Val.OutputInsideSource", "Val.TempInsideSource"));
+                }
+
+                protectedRoots.Add((Path.GetDirectoryName(normalized.SourcePath) ?? normalized.SourcePath, "Val.OutputInsideProject", "Val.TempInsideProject"));
+                break;
         }
 
         if (string.IsNullOrEmpty(normalized.OutputFolder))
         {
             errors.Add(new ValidationError(FieldOutput, Loc.T("Val.OutputMissing")));
         }
-        else if (kind == SourceKind.Folder && IsInside(normalized.OutputFolder, normalized.SourcePath))
-        {
-            errors.Add(new ValidationError(FieldOutput, Loc.T("Val.OutputInsideSource")));
-        }
 
-        if (kind == SourceKind.Folder && !string.IsNullOrEmpty(normalized.TemporaryFolder) && IsInside(normalized.TemporaryFolder, normalized.SourcePath))
+        foreach (var (root, outputKey, tempKey) in protectedRoots)
         {
-            errors.Add(new ValidationError(FieldTemporary, Loc.T("Val.TempInsideSource")));
+            if (!string.IsNullOrEmpty(normalized.OutputFolder) && IsInside(normalized.OutputFolder, root) && errors.All(e => e.Field != FieldOutput))
+            {
+                errors.Add(new ValidationError(FieldOutput, Loc.T(outputKey)));
+            }
+
+            if (!string.IsNullOrEmpty(normalized.TemporaryFolder) && IsInside(normalized.TemporaryFolder, root) && errors.All(e => e.Field != FieldTemporary))
+            {
+                errors.Add(new ValidationError(FieldTemporary, Loc.T(tempKey)));
+            }
         }
 
         if (!ContentIdHelper.IsValid(normalized.ContentId))
@@ -173,6 +237,22 @@ public static class BuildPreparer
         if (normalized.SdkMajorOverride is { } sdk && sdk is < BuildRequest.MinSdkMajor or > BuildRequest.MaxSdkMajor)
         {
             errors.Add(new ValidationError(FieldSdk, Loc.T("Val.Sdk")));
+        }
+
+        if (normalized.KrakenBlockKiB is < BuildRequest.MinKrakenBlockKiB or > BuildRequest.MaxKrakenBlockKiB)
+        {
+            errors.Add(new ValidationError(FieldKrakenBlock, Loc.T("Val.KrakenBlock")));
+        }
+
+        if (normalized.ShufflePredictionLevel is { } prediction && prediction is < BuildRequest.MinKrakenLevel or > BuildRequest.MaxKrakenLevel)
+        {
+            errors.Add(new ValidationError(FieldShuffle, Loc.T("Val.ShufflePrediction")));
+        }
+
+        if (normalized.SourceMode == SourceMode.Gp5Project &&
+            (string.IsNullOrWhiteSpace(normalized.ProjectFilePath) || !File.Exists(normalized.ProjectFilePath)))
+        {
+            errors.Add(new ValidationError(FieldProject, Loc.T("Val.ProjectMissing")));
         }
 
         if (normalized.KrakenBackend == KrakenBackendKind.PublishingTools)

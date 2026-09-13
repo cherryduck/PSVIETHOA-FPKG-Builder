@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using PsViethoa.FpkgBuilder.Core.Localization;
 using PsViethoa.FpkgBuilder.Core.Models;
 using PsViethoa.FpkgBuilder.Core.Services;
@@ -10,7 +11,39 @@ internal sealed class Arguments
 {
     private readonly Dictionary<string, string?> _options = new(StringComparer.OrdinalIgnoreCase);
 
+    // Mọi giá trị của một tuỳ chọn lặp lại (ví dụ --include a --include b).
+    private readonly Dictionary<string, List<string>> _multi = new(StringComparer.OrdinalIgnoreCase);
+
     public List<string> Positionals { get; } = new();
+
+    /// <summary>Tất cả giá trị của tuỳ chọn (theo thứ tự xuất hiện), rỗng nếu không có.</summary>
+    public IReadOnlyList<string> GetAll(params string[] names)
+    {
+        var values = new List<string>();
+        foreach (var name in names)
+        {
+            if (_multi.TryGetValue(name, out var list))
+            {
+                values.AddRange(list);
+            }
+        }
+
+        return values;
+    }
+
+    private void Set(string name, string? value)
+    {
+        _options[name] = value;
+        if (value != null)
+        {
+            if (!_multi.TryGetValue(name, out var list))
+            {
+                _multi[name] = list = new List<string>();
+            }
+
+            list.Add(value);
+        }
+    }
 
     public static Arguments Parse(IEnumerable<string> args)
     {
@@ -25,27 +58,27 @@ internal sealed class Arguments
                 var eq = body.IndexOf('=');
                 if (eq > 0)
                 {
-                    result._options[body[..eq]] = body[(eq + 1)..];
+                    result.Set(body[..eq], body[(eq + 1)..]);
                 }
-                else if (i + 1 < list.Count && !list[i + 1].StartsWith("-", StringComparison.Ordinal))
+                else if (i + 1 < list.Count && IsValueToken(list[i + 1]))
                 {
-                    result._options[body] = list[++i];
+                    result.Set(body, list[++i]);
                 }
                 else
                 {
-                    result._options[body] = null;
+                    result.Set(body, null);
                 }
             }
-            else if (token.StartsWith('-') && token.Length == 2)
+            else if (token.StartsWith('-') && token.Length == 2 && !IsNumber(token))
             {
                 var key = token[1..];
-                if (i + 1 < list.Count && !list[i + 1].StartsWith("-", StringComparison.Ordinal))
+                if (i + 1 < list.Count && IsValueToken(list[i + 1]))
                 {
-                    result._options[key] = list[++i];
+                    result.Set(key, list[++i]);
                 }
                 else
                 {
-                    result._options[key] = null;
+                    result.Set(key, null);
                 }
             }
             else
@@ -56,6 +89,12 @@ internal sealed class Arguments
 
         return result;
     }
+
+    /// <summary>Token đứng sau một tuỳ chọn là giá trị nếu không bắt đầu bằng '-' — trừ số âm (ví dụ --level -2, --shuffle-prediction-level -4).</summary>
+    private static bool IsValueToken(string token) => !token.StartsWith('-') || IsNumber(token);
+
+    private static bool IsNumber(string token) =>
+        token.Length > 1 && double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
 
     public bool Has(params string[] names) => names.Any(_options.ContainsKey);
 
@@ -101,6 +140,9 @@ internal static class CommandLine
                 "verify" => Verify(arguments),
                 "clean-junk" => CleanJunk(arguments),
                 "info" => Info(),
+                "pkg-info" => PackageCommands.Info(arguments),
+                "pkg-list" => PackageCommands.List(arguments),
+                "pkg-extract" => PackageCommands.Extract(arguments),
                 _ => Unknown(command),
             };
         }
@@ -171,7 +213,11 @@ internal static class CommandLine
         }
 
         var metadata = MetadataReader.Read(source, CancellationToken.None);
-        if (metadata.IsExFat)
+        if (metadata.IsGp5)
+        {
+            Console.WriteLine(Loc.F("Cli.SourceGp5", Path.GetFullPath(source), metadata.Gp5Layout ?? "—", metadata.Gp5RootFolder ?? "—"));
+        }
+        else if (metadata.IsExFat)
         {
             Console.WriteLine(Loc.F("Cli.SourceExFat", Path.GetFullPath(source), metadata.VolumeLabel ?? "—", metadata.AppRootInImage));
         }
@@ -295,7 +341,8 @@ internal static class CommandLine
             ContentId = arguments.Get("content-id", "c") ?? metadata?.ContentId ?? string.Empty,
             Title = arguments.Get("title", "t") ?? metadata?.Title ?? string.Empty,
             Version = arguments.Get("version", "v") ?? VersionHelper.CanonicalOrDefault(metadata?.Version),
-            Passcode = arguments.Get("passcode") ?? new string('0', BuildRequest.PasscodeLength),
+            // Dự án GP5 mang passcode riêng: dùng khi không truyền --passcode.
+            Passcode = arguments.Get("passcode") ?? metadata?.Gp5Passcode ?? new string('0', BuildRequest.PasscodeLength),
             Kind = (arguments.Get("kind") ?? "app").ToLowerInvariant() switch
             {
                 "homebrew" => PackageKind.Homebrew,
@@ -336,6 +383,66 @@ internal static class CommandLine
         if (arguments.GetInt("level") is { } level)
         {
             request.KrakenLevel = level;
+        }
+
+        if (arguments.Get("pfs") is { } pfs)
+        {
+            request.PfsFormat = pfs.Trim().ToLowerInvariant() is "v3" or "3" ? PfsFormat.V3 : PfsFormat.V2;
+        }
+
+        if (arguments.GetInt("block-size") is { } blockKiB)
+        {
+            request.KrakenBlockKiB = blockKiB;
+        }
+
+        if (arguments.Get("shuffle") is { } shuffleText)
+        {
+            // Tên mẫu sai là lỗi tham số (mã thoát 1) thay vì âm thầm dùng "none".
+            if (!Enum.TryParse<ShufflePatternKind>(shuffleText.Trim(), ignoreCase: true, out var parsed))
+            {
+                throw new BuildValidationException([new ValidationError(BuildPreparer.FieldShuffle, Loc.F("Cli.UnknownShuffle", shuffleText, string.Join(", ", Enum.GetNames<ShufflePatternKind>())))]);
+            }
+
+            request.ShufflePattern = parsed;
+        }
+
+        if (arguments.Has("shuffle-analysis"))
+        {
+            request.ShuffleAnalysis = true;
+        }
+
+        if (arguments.Get("shuffle-prediction-level") is { } predictionText && !string.Equals(predictionText, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            request.ShufflePredictionLevel = int.TryParse(predictionText, out var prediction) ? prediction : null;
+        }
+
+        if (arguments.Has("skip-pfs-input-check"))
+        {
+            request.SkipPfsInputCheck = true;
+        }
+
+        if (arguments.Has("no-layout-optimization"))
+        {
+            request.LayoutOptimization = false;
+        }
+
+        if (arguments.Get("source-mode") is { } sourceMode)
+        {
+            request.SourceMode = sourceMode.Trim().ToLowerInvariant() switch
+            {
+                "folder" => SourceMode.Folder,
+                "gp5" or "project" => SourceMode.Gp5Project,
+                _ => SourceMode.Auto,
+            };
+        }
+
+        if (arguments.Get("project") is { } project)
+        {
+            request.ProjectFilePath = project;
+            if (request.SourceMode == SourceMode.Auto)
+            {
+                request.SourceMode = SourceMode.Gp5Project;
+            }
         }
 
         if (string.IsNullOrEmpty(request.ContentId) && metadata != null)
@@ -477,7 +584,8 @@ internal sealed class ConsoleProgressRenderer
 
         var p = _latest;
         var eta = p.Eta is { } remaining && !p.IsComplete ? Loc.F("Cli.ProgressEta", Formatters.Clock(remaining)) : string.Empty;
-        var text = Loc.F("Cli.Progress", Bar(p.OverallPercent), p.OverallPercent, p.Phase, p.PhasePercent, Formatters.Clock(p.Elapsed), eta);
+        var rate = p.Throughput != null && !p.IsComplete ? " · " + p.Throughput : string.Empty;
+        var text = Loc.F("Cli.Progress", Bar(p.OverallPercent), p.OverallPercent, p.Phase, p.PhasePercent, Formatters.Clock(p.Elapsed), eta + rate);
 
         if (_interactive)
         {

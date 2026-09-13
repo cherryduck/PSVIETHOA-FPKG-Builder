@@ -14,7 +14,46 @@ public static class PackageVerifier
     // "\x7FFIH" – 4 byte magic của ảnh FIH.
     private static ReadOnlySpan<byte> FihMagic => [0x7F, (byte)'F', (byte)'I', (byte)'H'];
 
-    private const string PlaintextMarker = "PPRPLAIN-NOAUTH!";
+    /// <summary>Dấu 16 byte tại superblock+880 của lớp ngoài PLAINTEXT_NOAUTH.</summary>
+    public const string PlaintextMarker = "PPRPLAIN-NOAUTH!";
+
+    /// <summary>Các trường tối thiểu đọc từ header FIH (chưa kiểm tra giá trị) — dùng chung cho kiểm tra sau build và chế độ giải nén.</summary>
+    public sealed record FihSummary(byte SignedByte, long OuterSuperblockOffset, ushort OuterMode, string Marker);
+
+    /// <summary>Đọc magic FIH, signed byte, offset superblock PFS ngoài, mode và dấu 16 byte của lớp ngoài.</summary>
+    public static FihSummary ReadFihSummary(Stream stream)
+    {
+        if (stream.Length < 4096)
+        {
+            throw new InvalidDataException(Localization.Loc.T("Verify.TooSmall"));
+        }
+
+        stream.Position = 0;
+        Span<byte> header = stackalloc byte[48];
+        stream.ReadExactly(header);
+
+        if (!header[..4].SequenceEqual(FihMagic))
+        {
+            throw new InvalidDataException(Localization.Loc.T("Verify.NoFih"));
+        }
+
+        var signedByte = header[5];
+        var superblockOffset = checked((long)BinaryPrimitives.ReadUInt64LittleEndian(header.Slice(32, 8)));
+        if (superblockOffset < 0 || superblockOffset + 896 > stream.Length)
+        {
+            throw new InvalidDataException(Localization.Loc.T("Verify.Superblock"));
+        }
+
+        stream.Position = superblockOffset + 28;
+        Span<byte> modeBytes = stackalloc byte[2];
+        stream.ReadExactly(modeBytes);
+        var outerMode = BinaryPrimitives.ReadUInt16LittleEndian(modeBytes);
+
+        stream.Position = superblockOffset + 880;
+        Span<byte> markerBytes = stackalloc byte[16];
+        stream.ReadExactly(markerBytes);
+        return new FihSummary(signedByte, superblockOffset, outerMode, Encoding.ASCII.GetString(markerBytes));
+    }
 
     public static PackageVerification Verify(
         string packagePath,
@@ -37,42 +76,23 @@ public static class PackageVerifier
             throw new InvalidDataException(Localization.Loc.T("Verify.TooSmall"));
         }
 
-        Span<byte> header = stackalloc byte[48];
-        stream.ReadExactly(header);
-
-        if (!header[..4].SequenceEqual(FihMagic))
-        {
-            throw new InvalidDataException(Localization.Loc.T("Verify.NoFih"));
-        }
-
-        var signedByte = header[5];
+        var summary = ReadFihSummary(stream);
+        var signedByte = summary.SignedByte;
         if (signedByte != 0)
         {
             throw new InvalidDataException(Localization.Loc.F("Verify.Signed", signedByte.ToString("X2")));
         }
 
-        var superblockOffset = checked((long)BinaryPrimitives.ReadUInt64LittleEndian(header.Slice(32, 8)));
-        if (superblockOffset < 0 || superblockOffset + 896 > stream.Length)
-        {
-            throw new InvalidDataException(Localization.Loc.T("Verify.Superblock"));
-        }
-
-        stream.Position = superblockOffset + 28;
-        Span<byte> modeBytes = stackalloc byte[2];
-        stream.ReadExactly(modeBytes);
-        var outerMode = BinaryPrimitives.ReadUInt16LittleEndian(modeBytes);
+        var outerMode = summary.OuterMode;
         if (outerMode != 13)
         {
             throw new InvalidDataException(Localization.Loc.F("Verify.OuterMode", outerMode.ToString("X4")));
         }
 
-        stream.Position = superblockOffset + 880;
-        Span<byte> markerBytes = stackalloc byte[16];
-        stream.ReadExactly(markerBytes);
         string? marker = null;
         if (expectedMode == OuterImageMode.PlaintextNoAuth)
         {
-            marker = Encoding.ASCII.GetString(markerBytes);
+            marker = summary.Marker;
             if (!string.Equals(marker, PlaintextMarker, StringComparison.Ordinal))
             {
                 throw new InvalidDataException(Localization.Loc.T("Verify.Marker"));

@@ -7,20 +7,28 @@ public enum SourceKind
     None,
     Folder,
     ExFatImage,
+    Gp5Project,
 }
 
-/// <summary>Mô tả nguồn đã chọn: thư mục hoặc ảnh exFAT (kèm thư mục ứng dụng bên trong ảnh).</summary>
+/// <summary>Mô tả nguồn đã chọn: thư mục, ảnh exFAT (kèm thư mục ứng dụng bên trong ảnh) hoặc tệp dự án GP5.</summary>
 public sealed record SourceInfo(SourceKind Kind, string Path, string AppRootInImage, string? VolumeLabel)
 {
     public bool IsExFat => Kind == SourceKind.ExFatImage;
 
+    public bool IsGp5 => Kind == SourceKind.Gp5Project;
+
+    /// <summary>Thư mục chứa tệp .gp5 (thư viện nhận nó làm SourceFolder khi tạo gói từ dự án GP5).</summary>
+    public string ProjectDirectory => System.IO.Path.GetDirectoryName(Path) ?? Path;
+
     public string DisplayName => System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(Path));
 }
 
-/// <summary>Nhận diện loại nguồn và tìm thư mục ứng dụng (chứa sce_sys) trong thư mục hoặc ảnh exFAT.</summary>
+/// <summary>Nhận diện loại nguồn (thư mục, ảnh exFAT, dự án GP5) và tìm thư mục ứng dụng (chứa sce_sys) trong thư mục hoặc ảnh exFAT.</summary>
 public static class SourceLocator
 {
     public const int MaxImageSearchDepth = 3;
+
+    public const string Gp5Extension = ".gp5";
 
     public static SourceKind Detect(string? path)
     {
@@ -34,7 +42,17 @@ public static class SourceLocator
             return SourceKind.Folder;
         }
 
-        if (File.Exists(path) && (HasExFatExtension(path) || ExFatImage.IsExFatFile(path)))
+        if (!File.Exists(path))
+        {
+            return SourceKind.None;
+        }
+
+        if (HasGp5Extension(path))
+        {
+            return SourceKind.Gp5Project;
+        }
+
+        if (HasExFatExtension(path) || ExFatImage.IsExFatFile(path))
         {
             return SourceKind.ExFatImage;
         }
@@ -45,13 +63,21 @@ public static class SourceLocator
     public static bool HasExFatExtension(string path) =>
         string.Equals(Path.GetExtension(path), ExFatImage.Extension, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Phân giải nguồn; với ảnh exFAT sẽ mở ảnh để tìm thư mục ứng dụng. Ném lỗi nếu không hợp lệ.</summary>
+    public static bool HasGp5Extension(string path) =>
+        string.Equals(Path.GetExtension(path), Gp5Extension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Phân giải nguồn; với ảnh exFAT sẽ mở ảnh để tìm thư mục ứng dụng; với dự án GP5 chỉ trả về đường dẫn đầy đủ của tệp
+    /// (nội dung dự án được kiểm tra ở BuildPreparer.Validate). Ném lỗi nếu không hợp lệ.
+    /// </summary>
     public static SourceInfo Resolve(string path)
     {
         switch (Detect(path))
         {
             case SourceKind.Folder:
                 return new SourceInfo(SourceKind.Folder, Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)), string.Empty, null);
+            case SourceKind.Gp5Project:
+                return new SourceInfo(SourceKind.Gp5Project, Path.GetFullPath(path), string.Empty, null);
             case SourceKind.ExFatImage:
             {
                 using var image = ExFatImage.Open(path);

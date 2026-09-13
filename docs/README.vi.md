@@ -1,172 +1,185 @@
-# PSVIETHOA FPKG Builder
+<div align="center">
 
-Ứng dụng **tạo gói FPKG (FIH debug) cho PS5** từ thư mục ứng dụng đã chuẩn bị **hoặc từ ảnh đĩa exFAT (`.exfat`)**, chạy **native trên macOS (Apple Silicon & Intel) và Windows x64**, giao diện **song ngữ Việt / Anh** (chuyển ngay trong header), kèm công cụ dòng lệnh `fpkg-cli`.
+<img src="banner.png" alt="PSVIETHOA FPKG Builder" width="100%" />
 
-> **English summary:** cross-platform (macOS + Windows) PS5 FPKG builder written in C# / .NET 10 + Avalonia on top of LibProsperoPkg 1.2.0. Sources can be an app folder or an exFAT disk image (`.exfat`, mounted read-only on macOS or extracted elsewhere). Bilingual UI (Vietnamese / English), speed presets (default *Smallest* = Sony SDK standard, Kraken level 7), free-space and junk-file checks, ETA, verification, and a `fpkg-cli` for scripting. See `docs/screenshots/` for the UI.
+🇬🇧 English: [README.md](../README.md)
 
-Được viết lại hoàn toàn từ dự án WPF `FpkgBuilderVi` (chỉ chạy Windows) sang **C# / .NET 10 + Avalonia UI 11.3**, giữ nguyên lõi tạo gói **LibProsperoPkg 1.2.0** (Drakmor & SvenGDK) và bổ sung nhiều tối ưu cho việc build các thư mục game nặng (vài chục GB).
+**Tạo gói FPKG (FIH debug) cho PS5 từ thư mục ứng dụng, ảnh đĩa `.exfat` hoặc dự án GP5 — và giải nén các gói có sẵn — trên macOS và Windows.**
 
-![Giao diện tối](docs/screenshots/ui-dark.png)
+Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v2 / v3 · Dự án GP5 · Giải nén gói · Kiểm tra dung lượng trống & tệp rác · Thời gian còn lại & thông lượng · Tự động kiểm tra gói · CLI
+
+<a href="https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest"><img alt="Download" src="https://img.shields.io/badge/Download-Releases-22C55E?style=for-the-badge&logo=github" /></a>
+
+![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-0F172A?logo=apple)
+![Platform](https://img.shields.io/badge/Windows-x64-0F172A?logo=windows)
+![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
+![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
+![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
+![Version](https://img.shields.io/badge/version-2.1.0-F59E0B)
+
+</div>
+
+<p align="center">
+  <img src="screenshots/vi-source.png" width="32%" />
+  <img src="screenshots/vi-extract.png" width="32%" />
+  <img src="screenshots/vi-advanced.png" width="32%" />
+</p>
+
+<div align="center">
+
+**Ghi công:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** [Drakmor](https://github.com/) (LibProsperoPkg)
+
+</div>
 
 ---
+
+## Vì sao?
+
+Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng **WPF chỉ chạy trên Windows**. PSVIETHOA FPKG Builder được viết lại hoàn toàn bằng **C# / .NET 10 + Avalonia UI**, chạy native trên **macOS (Apple Silicon & Intel) và Windows**, bổ sung **giao diện song ngữ**, nhận **ảnh đĩa `.exfat`** làm nguồn, và chú trọng vào việc **chạy mượt, nhanh khi tạo gói từ những thư mục game rất lớn** (vài chục GB). Lõi tạo gói là **LibProsperoPkg** của **Drakmor** (bản dựng tháng 9/2026 phát hành cùng fpkg‑gui 0.6.2), nên gói tạo ra chính xác đến từng byte.
+
+> Kết quả là một **FPKG debug** (ảnh FIH, signed byte `0x00`) — chỉ cài được trên **PS5 đã bật chế độ debug**.
+
+## Có gì mới trong 2.1.0
+
+- **Engine LibProsperoPkg được cập nhật** — đọc / nén / ghi gối đầu nhau với ít bản sao trung gian hơn, khử trùng lặp khối và bộ đệm nén dùng trong lượt tạo gói, Kraken tích hợp được cải thiện (nhất là mức 8–9), tự chuyển sang Kraken tích hợp khi không có Oodle, sửa lỗi xử lý tệp và hủy giữa chừng, và gói đã có được giữ nguyên nếu lần tạo lại thất bại.
+- **Chọn PFS v2 / v3**, **kích thước khối nén Kraken** tuỳ chỉnh (128–256 KiB), **mẫu shuffle trước nén** và **tự phân tích chọn shuffle tốt nhất** (tối ưu texture của PFS v3 bằng cách chọn hoán vị — rất chậm, chỉ phát huy đầy đủ ở Kraken mức 9), **tối ưu bố cục vật lý** tuỳ chọn. Gói PFS v3 cần **firmware PS5 7.00 trở lên**; ứng dụng sẽ cảnh báo về điều này.
+- **Preset được ánh xạ lại theo bộ nén mới**: mặc định giờ là **Chuẩn Sony** = Kraken 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7" (cùng kích thước, cùng tốc độ, cộng thêm lợi ích từ khử trùng lặp khối / tối ưu bố cục); **Nhỏ nhất** = Kraken 7 *Optimal* là chế độ nén sâu mới (nhỏ hơn ~3 %, chậm gấp 5–6 lần); preset **Tối đa** mới (Kraken 9 + PFS v3 + phân tích shuffle).
+- Hiển thị **thông lượng** thực tế trong bảng tạo gói, tiến trình mượt hơn với các tệp nhiều GB, ước tính thời gian còn lại được tinh chỉnh lại.
+- CLI: `--pfs`, `--block-size`, `--shuffle`, `--shuffle-analysis`, `--shuffle-prediction-level`, `--skip-pfs-input-check`, `--no-layout-optimization`, `--source-mode`, `--project`, `--preset sony|standard`; lệnh mới `pkg-info`, `pkg-list`, `pkg-extract`.
+- **Giải nén gói có sẵn** — chế độ **Giải nén gói** mới (thanh Tạo gói | Giải nén gói ngay dưới header): mở một tệp `.pkg` (hoặc kéo–thả vào cửa sổ) để xem header FIH / CNT, mọi trường `param.json`, icon và toàn bộ danh sách tệp của ảnh trong PPR‑PFS; tích chọn tệp hoặc thư mục rồi giải nén chúng (hoặc cả gói), hay xuất các entry `sce_sys`. Gói PLAINTEXT_NOAUTH được đọc thẳng từ `.pkg` theo từng khối 4 MiB mà không dựng lại ảnh; gói Native (AES‑XTS) được giải mã ra thư mục tạm trước. CLI: `pkg-info`, `pkg-list`, `pkg-extract`.
+- **Nguồn là dự án GP5** (`.gp5`, giống bộ chọn Folder | GP5 của fpkg‑gui): chọn dự án Publishing Tools / fpkg‑gui ở bước 1 hoặc kéo–thả vào cửa sổ — bố cục Normal và Flat, mặt nạ loại trừ và đường dẫn tương đối đều được tôn trọng, passcode lấy từ dự án; `fpkg-cli inspect` / `build --source x.gp5`; tuỳ chọn nâng cao **Cách đọc nguồn** cho phép chọn giữa *Tự động* (dùng tệp `.gp5` ở cấp trên cùng) và *Chỉ thư mục*.
+
+Xem [CHANGELOG.md](../CHANGELOG.md) để biết chi tiết.
 
 ## Tính năng
 
 | Nhóm | Chi tiết |
 |---|---|
-| Nguồn | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT `.exfat`** (volume thuần, MBR hay GPT). Bộ đọc exFAT thuần .NET đọc param.json/icon/kích thước trực tiếp từ ảnh; khi build: **macOS gắn ảnh bằng hdiutil (không sao chép)**, Windows hoặc ảnh có tệp rác thì **giải nén ra thư mục tạm** (tự bỏ qua `.DS_Store`, `._*`…) rồi tự dọn |
-| Ngôn ngữ | Tiếng Việt / English, đổi ngay lập tức, lưu lựa chọn; CLI nhận `--lang vi\|en` hoặc biến `FPKG_LANG` |
-| Tạo gói | FIH debug (signed byte 0x00), PLAINTEXT_NOAUTH hoặc Native AES-XTS, APP / Homebrew / DLC, PlayGo tự động 1–64 khối, ghi đè SDK 1–11, passcode, bản dựng xác định |
-| Nén | Bộ nén **Kraken tích hợp thuần .NET** (chạy trên macOS/Windows/Linux, đa luồng) hoặc **Oodle gốc** qua `libScePubTools.dll` (Windows) — chế độ *Tự động* tự chọn, không bao giờ âm thầm rơi về "không nén" |
-| Tốc độ | Preset **Nhanh · Cân bằng · Nhỏ nhất** (mặc định **Nhỏ nhất** = Kraken mức 7, chuẩn Sony Publishing Tools), tuỳ chỉnh mức nén -4..9 và số luồng, chế độ không nén cho test nhanh |
-| Trước khi build | Đọc `sce_sys/param.json` + `icon0.png`, quét dung lượng song song, **kiểm tra dung lượng trống** ổ tạm/ổ xuất, **phát hiện & dọn tệp rác** (`.DS_Store`, `Thumbs.db`, `._*`, `__MACOSX`…) để chúng không lọt vào gói |
-| Trong khi build | Thanh tiến trình tổng thể theo trọng số giai đoạn, **ước tính thời gian còn lại**, nhật ký ảo hoá 20.000 dòng không giật, hủy an toàn, **chống máy ngủ** (caffeinate / SetThreadExecutionState) |
-| Sau khi build | Tự kiểm tra cấu trúc FIH/PFS ngoài, SHA-256 tuỳ chọn (bộ đệm 4 MB), bảng kết quả, sao chép/lưu nhật ký, mở thư mục kết quả |
-| Giao diện | Theme tối OLED (mặc định) & sáng, kéo–thả thư mục, thư mục gần đây, kiểm tra lỗi ngay tại trường, phím tắt Ctrl/⌘+B · F5 · Esc · F1 |
-| CLI | `fpkg-cli build / inspect / verify / clean-junk / info` — dùng cho build hàng loạt, script, CI |
+| **Nguồn** | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT (`.exfat`)** — volume thuần, MBR hay GPT. Bộ đọc exFAT thuần .NET đọc `param.json` / icon / dung lượng trực tiếp từ ảnh. Trên macOS, ảnh được **gắn ở chế độ chỉ đọc bằng `hdiutil` (không sao chép)**; trên Windows, hoặc khi ảnh có tệp rác, ảnh được **giải nén ra thư mục tạm** (bỏ qua `.DS_Store`, `._*`, `Thumbs.db`…) rồi tự dọn sau khi xong. **Hoặc dự án GP5 (`.gp5`)** của Publishing Tools / fpkg‑gui — bố cục Normal (`rootdir` + mặt nạ loại trừ) hoặc Flat (liệt kê từng tệp); đường dẫn tương đối tính từ thư mục chứa dự án, thẻ thông tin hiển thị bố cục và thư mục gốc của dự án, và chỉ những tệp dự án liệt kê mới được đếm. |
+| **Ngôn ngữ** | Tiếng Việt / English, chuyển ngay trên header, lựa chọn được ghi nhớ. CLI nhận `--lang vi\|en` hoặc biến môi trường `FPKG_LANG`. |
+| **Tạo gói** | Ảnh FIH debug, PLAINTEXT_NOAUTH hoặc Native AES‑XTS, APP / Homebrew / DLC, PlayGo tự động (1–64 khối), ghi đè SDK (1–11), passcode, bản dựng xác định (deterministic). |
+| **Nén** | **Bộ nén Kraken tích hợp** (thuần .NET, chạy trên mọi hệ điều hành, đa luồng) hoặc **Oodle gốc** qua `libScePubTools.dll` (Windows, tự chuyển về Kraken tích hợp khi không có). **PFS v2** (mặc định, tương thích rộng nhất) hoặc **PFS v3** (mẫu shuffle trước nén, tự phân tích shuffle cho từng khối), kích thước khối Kraken 128–256 KiB, tối ưu bố cục vật lý. |
+| **Tốc độ** | Preset **Nhanh · Chuẩn Sony · Nhỏ nhất · Tối đa**. **Chuẩn Sony** (mặc định) = Kraken mức 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7": cùng kích thước, cùng tốc độ. **Nhỏ nhất** = Kraken 7 *Optimal* — chế độ nén sâu mới, nhỏ hơn khoảng 3 % nhưng chậm gấp 5–6 lần. **Tối đa** = Kraken 9 + PFS v3 + phân tích shuffle. Tuỳ chỉnh mức nén `-4…9`, số luồng, và chế độ không nén để test nhanh. |
+| **Trước khi tạo gói** | Đọc metadata + icon, quét dung lượng song song, **kiểm tra dung lượng trống** trên ổ tạm / ổ xuất, và **phát hiện & dọn tệp rác hệ điều hành**. |
+| **Trong khi tạo gói** | Thanh tiến trình tổng thể theo trọng số giai đoạn kèm **thời gian còn lại (ETA)** và **thông lượng** thực tế, tiến trình tính theo byte ngay bên trong các tệp nhiều GB, nhật ký ảo hoá 20.000 dòng, hủy an toàn, và **chống máy ngủ** (`caffeinate` / `SetThreadExecutionState`). |
+| **Sau khi tạo gói** | Kiểm tra cấu trúc FIH / PFS ngoài, SHA‑256 tuỳ chọn, bảng kết quả, sao chép / lưu nhật ký, mở thư mục kết quả. |
+| **Giải nén gói** | Chế độ **Giải nén gói**: header FIH / CNT, bản đồ vùng, mọi trường `param.json`, icon và danh sách tệp của một FPKG debug; lọc và tích chọn tệp / thư mục, giải nén phần đã chọn hoặc cả gói với tiến trình và nút hủy, xuất `sce_sys` (param.json, icon0.png, playgo…) và các mục SI, SHA‑256 tuỳ chọn. Gói plaintext được đọc tại chỗ (bộ đệm khối 4 MiB, không tạo ảnh tạm); gói Native được giải mã ra thư mục tạm trước; gói retail chỉ xem được thông tin. |
+| **CLI** | `fpkg-cli build / inspect / verify / clean-junk / info / pkg-info / pkg-list / pkg-extract` cho tạo gói hàng loạt, script và CI. |
 
-## Yêu cầu
+## Tải về & chạy
 
-* **Để chạy bản phát hành:** không cần cài gì thêm (bản self-contained kèm .NET).
-* **Để build từ mã nguồn:** [.NET SDK 10](https://dotnet.microsoft.com/download) trở lên. Trên macOS cài qua Homebrew: `brew install dotnet`.
-* Oodle gốc (`libScePubTools.dll`) chỉ dùng được trên Windows x64; trên macOS ứng dụng luôn dùng Kraken tích hợp.
+Tải gói nén cho nền tảng của bạn từ trang [**Releases**](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest). Mỗi bản dựng đều **self‑contained** — không cần cài .NET.
 
-## Cấu trúc mã nguồn
+- **macOS** — giải nén, lần đầu chạy hãy chuột phải `PSVIETHOA FPKG Builder.app` → chọn **Open** (Mở) (ứng dụng được ký ad‑hoc).
+- **Windows** — giải nén và chạy `PSVIETHOA FPKG Builder.exe`. SmartScreen có thể cảnh báo → chọn **Run anyway**.
 
-```
-PSVIETHOA_Fpkg_Builder/
-├─ PsViethoa.FpkgBuilder.slnx
-├─ Directory.Build.props              # net10.0, phiên bản, GC/PGO
-├─ libs/                              # LibProsperoPkg.dll (+xml/pdb), libScePubTools.dll (Windows)
-├─ src/
-│  ├─ PsViethoa.FpkgBuilder.Core/     # Lõi: engine, validation, quét thư mục, tiến trình, tiện ích
-│  │  ├─ Models/                      # BuildRequest, BuildOutcome, LogEntry, SourceMetadata…
-│  │  └─ Services/                    # BuildEngine, BuildPreparer, PhaseCatalog, ProgressTracker,
-│  │                                  # FolderScanner, JunkFileFinder, DiskSpaceAdvisor, SleepInhibitor…
-│  ├─ PsViethoa.FpkgBuilder.App/      # Giao diện Avalonia (MVVM, CommunityToolkit.Mvvm)
-│  │  ├─ Styles/                      # Tokens (theme tối/sáng), Icons (SVG path), Controls, ControlThemes
-│  │  ├─ ViewModels/MainViewModel.cs
-│  │  ├─ Views/                       # MainWindow, HelpWindow, MessageDialog
-│  │  └─ Assets/                      # icon, font JetBrains Mono (OFL)
-│  └─ PsViethoa.FpkgBuilder.Cli/      # fpkg-cli
-├─ tests/PsViethoa.FpkgBuilder.Tests/ # xunit
-├─ scripts/                           # publish-macos.sh, publish-windows.sh/.ps1, run-dev.sh, make-icons.py
-└─ design-system/ps5-fpkg-builder/    # MASTER.md — hệ thống thiết kế (màu, chữ, khoảng cách)
-```
+Mỗi gói nén đều kèm sẵn công cụ dòng lệnh `fpkg-cli`.
 
-## Build & chạy
+## Bắt đầu nhanh
+
+1. Chuẩn bị thư mục ứng dụng PS5 đã giải nén (có thư mục `sce_sys` và `eboot.bin`), **hoặc** trỏ tới một ảnh đĩa `.exfat`.
+2. Ở **bước 1**, nhấn **Chọn…** / **Ảnh .exfat**, hoặc kéo–thả thư mục / ảnh vào cửa sổ. Content ID, tên, phiên bản, dung lượng và tệp rác được nhận diện tự động.
+3. Chọn preset tốc độ ở **bước 3** (Chuẩn Sony là mặc định và tương đương "Kraken 7" của engine cũ; Nhỏ nhất = mức 7 Optimal, chậm) hoặc mở phần tuỳ chọn nâng cao.
+4. Nhấn **Tạo gói PKG** (`Ctrl/⌘+B` hoặc `F5`). Theo dõi tiến trình, thời gian còn lại và nhật ký; khi xong, cấu trúc gói được kiểm tra tự động.
+
+## Dòng lệnh
 
 ```bash
-# Khôi phục gói và build toàn bộ
-dotnet build PsViethoa.FpkgBuilder.slnx -c Release
-
-# Chạy giao diện (macOS/Linux)
-scripts/run-dev.sh
-# hoặc
-dotnet run --project src/PsViethoa.FpkgBuilder.App -c Debug
-
-# Chạy kiểm thử
-dotnet test
-```
-
-> macOS + Homebrew: nếu chạy trực tiếp tệp thực thi trong `bin/` báo "You must install .NET", hãy đặt `export DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec` (script `run-dev.sh` tự làm việc này). Bản phát hành self-contained không cần bước này.
-
-### Đóng gói phát hành
-
-```bash
-scripts/publish-macos.sh              # dist/osx-arm64 & dist/osx-x64: "PSVIETHOA FPKG Builder.app" + fpkg-cli + .zip
-scripts/publish-windows.sh            # dist/win-x64: "PSVIETHOA FPKG Builder.exe" (một tệp) + fpkg-cli + libScePubTools.dll
-# Trên Windows:
-powershell -ExecutionPolicy Bypass -File scripts\publish-windows.ps1
-```
-
-Bản macOS được ký ad-hoc; lần đầu mở, chuột phải → **Mở** (Gatekeeper). Bản Windows chưa ký, SmartScreen có thể hỏi — chọn *Run anyway*.
-
-## Dùng dòng lệnh
-
-```bash
-fpkg-cli info --lang en                                 # kiểm tra khoá debug, bộ nén mặc định
-fpkg-cli inspect "/path/PPSA12345"                      # đọc param.json, dung lượng, tệp rác, dung lượng trống
-fpkg-cli inspect "/path/PPSA12345.exfat"                # ảnh exFAT: đọc trực tiếp không cần mount
-fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"          # mặc định: Nhỏ nhất (Sony), exfat auto
+fpkg-cli info --lang en
+fpkg-cli inspect "/path/PPSA12345"                 # folder
+fpkg-cli inspect "/path/PPSA12345.exfat"           # exFAT image — read directly, no mount
+fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Sony standard (level 4), exfat auto
 fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out" --exfat extract
 fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset fast --clean-junk
-fpkg-cli build -s SRC -o OUT --backend none             # không nén (nhanh nhất)
-fpkg-cli build -s SRC -o OUT --level 7 --threads 8 --sha256 --sdk 4
+fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset maximum       # Kraken 9 + PFS v3 + shuffle analysis
+fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --pfs v3 --shuffle PredictForBc3 --block-size 128
 fpkg-cli verify "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --sha256
-fpkg-cli clean-junk "/path/PPSA12345" --dry-run
+fpkg-cli pkg-info "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg"                # General + param.json
+fpkg-cli pkg-list "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --include "*.sprx"
+fpkg-cli pkg-extract "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --output "/path/unpacked" --include "sce_sys/**" --include "eboot.bin" --cnt
 ```
 
-Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại · `3` bị hủy (Ctrl+C dừng an toàn).
+Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại · `3` bị hủy.
 
-## Tối ưu tốc độ — số liệu đo thực tế
+## Ảnh exFAT (.exfat)
 
-Máy đo: MacBook Apple Silicon (15 nhân logic), macOS 26, Kraken tích hợp, nguồn 400 MB (một nửa nén được, một nửa ngẫu nhiên).
+- Nhận diện tự động theo chữ ký `EXFAT   ` ở đầu volume, hoặc bên trong phân vùng MBR/GPT; các offset thông dụng (sector 63, 2048…) cũng được dò.
+- Thư mục ứng dụng được tìm tới độ sâu 3 cấp bên trong ảnh (ưu tiên gốc, ví dụ các bản dump có `sce_sys` ngay tại gốc).
+- **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → tạo gói thẳng từ điểm gắn, tháo ảnh khi xong. Chế độ *Tự động* chỉ gắn ảnh khi ảnh không có tệp rác; nếu có tệp rác thì giải nén để có thể bỏ qua chúng.
+- **Windows / Linux:** giải nén bằng bộ đọc thuần .NET (3 luồng, bộ đệm 4 MB) ra `<temp>/exfat-<name>-<hash>/`, cần thêm dung lượng trống ≈ lượng dữ liệu trong ảnh; xoá sau khi tạo gói (kể cả khi hủy).
+- **Đã đối chứng:** cùng một ảnh tạo gói theo hai cách — gắn bằng hdiutil và giải nén bằng bộ đọc thuần .NET — cho ra gói **giống hệt nhau từng byte** (cùng SHA‑256), tức bộ đọc khớp chính xác với driver của macOS.
 
-| Cấu hình | Thời gian | Kích thước gói | Đỉnh dung lượng thư mục tạm |
+## Hiệu năng
+
+Đo trên Mac Apple Silicon (15 nhân logic), Kraken tích hợp, bản LibProsperoPkg đi kèm 2.1.0:
+
+| Bài đo | Cấu hình | Thời gian | Gói |
 |---|---|---|---|
-| Kraken mức 2 (Nhanh) | 7,3 s | 254,3 MB | 257 MB |
-| Kraken mức 4 (Cân bằng) | 7,9 s | 254,2 MB | 257 MB |
-| Kraken mức 7 (Nhỏ nhất — mặc định, chuẩn Sony SDK) | 8,5 s | 254,2 MB | 257 MB |
-| Không nén | 3,8 s | 423,4 MB | 403 MB |
+| 400 MB dữ liệu tổng hợp | Nhanh (Kraken 2) / **Chuẩn Sony (4, mặc định)** | 6.8 giây / 7.5 giây | 254.3 MB / 254.2 MB |
+| 400 MB dữ liệu tổng hợp | Nhỏ nhất (Kraken 7) | 16.4 giây | 250.3 MB |
+| 400 MB dữ liệu tổng hợp | Tối đa (Kraken 9 + PFS v3 + phân tích shuffle) | 47.6 giây | 249.8 MB |
+| Game thật 813 MB (`PPSA06438`, ảnh .exfat được gắn) | Nhỏ nhất / Nhanh | 23.4 giây / 4.9 giây | 257.2 MB / 262.8 MB |
+| **Game thật 21.3 GB** (`PPSA27625`, ảnh .exfat được gắn) | Nhanh (Kraken 2) | 1 phút 59 giây | 8.86 GiB |
+| **Game thật 21.3 GB** | **Chuẩn Sony (Kraken 4, mặc định)** | **2 phút 13 giây** | **8.86 GiB** |
+| **Game thật 21.3 GB** | Nhỏ nhất (Kraken 7 Optimal) | 12 phút 49 giây | 8.54 GiB |
 
-Rút ra:
+Để so sánh, bản LibProsperoPkg đi kèm 2.0.0 tạo gói cùng game 21.3 GB này trong 3 phút 40 giây, ra gói 9.03 GiB. Đo song song trên cùng bộ dữ liệu 400 MB, engine 2.0.0 cho ra gói **giống hệt nhau** ở mức 4 và mức 7 (254,212,194 byte) — "mức 7" của nó thực chất là bộ nén Normal — còn engine 2.1.0 ở mức 4 tái tạo đúng kết quả đó (254,211,794 byte) với cùng tốc độ. Vì vậy **Chuẩn Sony** (mặc định) cho bạn kích thước "Kraken 7" cũ với tốc độ cũ, và với game 21 GB còn nhanh hơn và nhỏ hơn trước (2 phút 13 giây, 8.86 GiB). **Nhỏ nhất** là chế độ *Optimal* thực sự mới: giảm thêm 3.5 % (8.54 GiB) đổi lấy thời gian tạo gói lâu gấp 5–6 lần trên dữ liệu game vốn đã được nén sẵn. Mức 4–6 cho ra kết quả giống hệt nhau; từ mức 7 trở lên chuyển sang bộ phân tích (parser) optimal.
 
-* Thư viện tự **lưu thô các tệp không nén được** (video, audio, texture đã nén) nên với dữ liệu game thật, khác biệt giữa các mức Kraken thường nhỏ; mức 2 tiết kiệm ~15 % thời gian nén.
-* **Không nén** nhanh gấp đôi nhưng gói lớn hơn nhiều — hợp để test.
-* Đỉnh dung lượng tạm ≈ kích thước ảnh trong đã nén (≤ nguồn); gói `.pkg` ≈ nguồn. Ứng dụng dùng hệ số dự phòng **1,1× nguồn cho ổ tạm và 1,1× cho ổ xuất** khi cảnh báo dung lượng.
-* Sau giai đoạn PFS ngoài có khoảng lặng ~3–4 s cố định (tính digest & bọc khoá RSA) — không phụ thuộc kích thước.
-* Các tối ưu ở tầng ứng dụng: quét thư mục song song một lượt (`FileSystemEnumerable`), nhật ký gom theo lô 80 ms và ảo hoá, tiến trình gộp theo trọng số giai đoạn để ETA ổn định, `TieredPGO` + GC đồng thời, thư mục tạm cùng ổ với thư mục xuất (tránh copy chéo ổ), chống máy ngủ.
+## Build từ mã nguồn
 
-**Đo với game thật** (ảnh `PPSA27625.exfat` 21,3 GB, 176 tệp, gắn bằng hdiutil, preset Nhỏ nhất — Kraken mức 7, 15 luồng): **3 phút 40 giây**, gói `.pkg` **9,03 GB** (≈ 42 % dung lượng nguồn nhờ Kraken nén các tệp `.ucas`), thư mục tạm được dọn sạch và ảnh tự tháo sau khi xong. Với game 70 GB ước tính khoảng 12–20 phút tuỳ ổ đĩa.
+Cần [.NET SDK 10](https://dotnet.microsoft.com/download) (`brew install dotnet` trên macOS).
 
-## Móc phát triển (dev hooks)
+```bash
+dotnet build PsViethoa.FpkgBuilder.slnx -c Release   # build everything
+scripts/run-dev.sh                                   # run the GUI (macOS/Linux)
+dotnet test                                          # run the test suite
 
-Ứng dụng có vài biến môi trường phục vụ kiểm thử không cần thao tác tay (dùng để tạo ảnh chụp trong `docs/screenshots/`):
+scripts/publish-macos.sh osx-arm64 osx-x64           # dist/: .app + fpkg-cli + zip
+scripts/publish-windows.sh                           # dist/win-x64: .exe + fpkg-cli + zip
+```
 
-| Biến | Tác dụng |
+<details>
+<summary>Cấu trúc dự án</summary>
+
+```
+PsViethoa.FpkgBuilder.slnx
+Directory.Build.props                 # net10.0, version (2.1.0), GC/PGO
+CHANGELOG.md
+libs/                                 # LibProsperoPkg.dll, libScePubTools.dll (Windows)
+src/
+  PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
+  PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
+  PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (68 tests)
+scripts/                              # publish + dev scripts
+```
+</details>
+
+## Ảnh chụp giao diện
+
+| Giao diện sáng | Tuỳ chọn PFS v3 | Giao diện tiếng Việt |
+|---|---|---|
+| ![](screenshots/en-light.png) | ![](screenshots/en-advanced-pfs.png) | ![](screenshots/vi-advanced.png) |
+
+| Đang tạo gói | Chế độ Giải nén gói (tiếng Việt) | Giải nén xong |
+|---|---|---|
+| ![](screenshots/en-building.png) | ![](screenshots/vi-extract.png) | ![](screenshots/vi-extract-done.png) |
+
+| Chế độ Giải nén gói, giao diện sáng | Hướng dẫn — Ghi công |
 |---|---|
-| `PSVIETHOA_SCREENSHOT=/duong/dan.png` | Mở cửa sổ, chụp giao diện ra PNG rồi thoát |
-| `PSVIETHOA_SCROLL=end` | Cuộn cột cấu hình xuống cuối trước khi chụp |
-| `PSVIETHOA_AUTOBUILD=/duong/dan/prefix` | Tự bấm **Tạo gói PKG**, chụp `prefix-building.png` và `prefix-done.png` rồi thoát |
-| `PSVIETHOA_DEBUG=1` | In chẩn đoán (hộp thoại, bước build) ra stderr |
-| `PSVIETHOA_SWITCH_LANG=en\|vi` | Đổi ngôn ngữ 1 giây sau khi mở (kiểm thử binding `{l:T}` cập nhật lúc chạy) |
-
-Cấu hình người dùng nằm ở `~/Library/Application Support/PSVIETHOA FPKG Builder/settings.json` (macOS) hoặc `%APPDATA%\PSVIETHOA FPKG Builder\settings.json` (Windows); lỗi nghiêm trọng ghi vào `error.log` cùng thư mục.
-
-## Ảnh giao diện
-
-| Tối (mặc định) | Sáng |
-|---|---|
-| ![](docs/screenshots/ui-dark.png) | ![](docs/screenshots/ui-light.png) |
-
-| Tuỳ chọn nâng cao | Sau khi tạo gói |
-|---|---|
-| ![](docs/screenshots/ui-advanced.png) | ![](docs/screenshots/ui-build-done.png) |
-
-| Nguồn là ảnh .exfat (VI) | English |
-|---|---|
-| ![](docs/screenshots/ui-exfat-vi.png) | ![](docs/screenshots/ui-exfat-en.png) |
-
-## Hệ thống thiết kế
-
-Được sinh bằng skill *ui-ux-pro-max* (`design-system/ps5-fpkg-builder/MASTER.md`): phong cách **Dark Mode (OLED)** cho developer tool, nền `#0F172A`, thẻ `#1B2336`, nhấn xanh lá "run green" `#22C55E`, chữ **Inter** (UI) + **JetBrains Mono** (Content ID, nhật ký), icon vector Material Design (không dùng emoji), độ tương phản chữ ≥ 4.5:1 ở cả hai theme, mọi nút ≥ 36 px, phím tắt & focus rõ ràng.
-
-## Ảnh đĩa exFAT (.exfat)
-
-* Nhận diện tự động theo chữ ký `EXFAT   ` ở đầu volume, hoặc trong phân vùng MBR/GPT; các offset thông dụng (63, 2048 sector…) cũng được dò.
-* Thư mục ứng dụng được tìm tới độ sâu 3 bên trong ảnh (ưu tiên gốc, ví dụ dump có `sce_sys` ngay gốc như `PPSA27625.exfat`).
-* **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → build thẳng từ điểm gắn, tháo khi xong. Chế độ *Tự động* chỉ gắn khi ảnh không có tệp rác; có tệp rác thì giải nén để bỏ qua chúng.
-* **Windows/Linux:** giải nén bằng bộ đọc thuần .NET (3 luồng, bộ đệm 4 MB) ra `<thư mục tạm>/exfat-<tên>-<hash>/`, cần thêm dung lượng trống ≈ dữ liệu trong ảnh; xoá sau khi build (kể cả khi hủy).
-* Kiểm thử: `tests/PsViethoa.FpkgBuilder.Tests/ExFatTests.cs` với ảnh mẫu 8 MB (volume thuần, MBR lồng thư mục, GPT rỗng) và ảnh thật nếu có trong `~/Downloads`.
-* Đối chứng độc lập: cùng ảnh `PPSA06438.exfat` (Let's Build A Zoo, 813 MB) tạo gói theo hai cách — gắn bằng hdiutil và giải nén bằng bộ đọc thuần .NET — cho ra hai tệp `.pkg` **giống hệt nhau từng byte** (cùng SHA-256), tức bộ đọc exFAT đọc dữ liệu chính xác như driver của macOS.
+| ![](screenshots/en-extract-light.png) | ![](screenshots/en-credits.png) |
 
 ## Ghi công & giấy phép
 
-* **PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương**: phát triển ứng dụng đa nền tảng, giao diện song ngữ, hỗ trợ ảnh exFAT, `fpkg-cli`.
-* **Main project: Drakmor** — tác giả LibProsperoPkg, lõi tạo gói FPKG (PFS, NAPS, Kraken, PlayGo, kiểm tra gói).
-* Lõi tạo gói: **LibProsperoPkg 1.2.0** — Drakmor (cùng SvenGDK ở công cụ GUI gốc); tệp `libs/LibProsperoPkg.dll` được giữ nguyên.
-* `libScePubTools.dll` — Sony Publishing Tools (tuỳ chọn, chỉ Windows).
-* Font JetBrains Mono — SIL Open Font License 1.1; Inter — SIL OFL (qua gói Avalonia.Fonts.Inter).
-* Icon — Material Design Icons (Pictogrammers, Apache 2.0).
-* Mã nguồn ứng dụng — PSVIETHOA (Nguyễn Thanh Sơn & Ngô Phi Phương), 2026.
+- **PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương** — ứng dụng đa nền tảng, giao diện song ngữ, hỗ trợ ảnh exFAT, `fpkg-cli`.
+- **Main project: [Drakmor](https://github.com/)** — tác giả **LibProsperoPkg**, lõi tạo gói FPKG (PFS v2/v3, NAPS, Kraken, phân tích shuffle, PlayGo, kiểm tra gói).
+- Font: JetBrains Mono & Inter (SIL OFL). Icon: Material Design Icons (Apache 2.0).
+- Cảm ơn cộng đồng PS5 homebrew và tất cả những ai đã đóng góp cho LibProsperoPkg.
+
+> Công cụ này tạo gói **debug** phục vụ homebrew và phát triển trên các máy đã bật chế độ debug. Các tệp bên thứ ba `LibProsperoPkg.dll` / `libScePubTools.dll` được đi kèm nguyên vẹn, không chỉnh sửa. Hãy sử dụng có trách nhiệm.
+
+<div align="center">
+
+Thực hiện bởi **PSVIETHOA** với tất cả tâm huyết · 🇻🇳
+
+</div>

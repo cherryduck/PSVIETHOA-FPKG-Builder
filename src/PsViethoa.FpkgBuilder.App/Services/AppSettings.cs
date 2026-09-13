@@ -6,10 +6,13 @@ namespace PsViethoa.FpkgBuilder.App.Services;
 /// <summary>Cấu hình được lưu giữa các phiên làm việc.</summary>
 public sealed class AppSettings
 {
-    /// <summary>Thư mục ứng dụng hoặc tệp ảnh .exfat.</summary>
+    /// <summary>Thư mục ứng dụng, tệp ảnh .exfat hoặc tệp dự án .gp5.</summary>
     public string SourcePath { get; set; } = string.Empty;
 
     public ExFatStrategy ExFat { get; set; } = ExFatStrategy.Auto;
+
+    /// <summary>Cách đọc thư mục nguồn: tự dùng .gp5 ở cấp trên cùng (Auto) hay chỉ thư mục (Folder). Nguồn .gp5 luôn dùng Gp5Project.</summary>
+    public SourceMode SourceMode { get; set; } = SourceMode.Auto;
 
     /// <summary>Ngôn ngữ giao diện: "vi" hoặc "en".</summary>
     public string Language { get; set; } = "vi";
@@ -34,6 +37,18 @@ public sealed class AppSettings
 
     public int Threads { get; set; }
 
+    public PfsFormat PfsFormat { get; set; } = PfsFormat.V2;
+
+    public int KrakenBlockKiB { get; set; } = BuildRequest.DefaultKrakenBlockKiB;
+
+    public ShufflePatternKind ShufflePattern { get; set; } = ShufflePatternKind.None;
+
+    public bool ShuffleAnalysis { get; set; }
+
+    public bool SkipPfsInputCheck { get; set; }
+
+    public bool LayoutOptimization { get; set; } = true;
+
     public int PlayGoChunks { get; set; } = BuildRequest.MaxPlayGoChunks;
 
     public bool Deterministic { get; set; } = true;
@@ -57,6 +72,15 @@ public sealed class AppSettings
     public double WindowWidth { get; set; } = 1320;
 
     public double WindowHeight { get; set; } = 880;
+
+    /// <summary>Chế độ cuối cùng: true = giải nén gói, false = tạo gói.</summary>
+    public bool ExtractMode { get; set; }
+
+    /// <summary>Tệp .pkg mở gần nhất trong chế độ giải nén.</summary>
+    public string ExtractPackagePath { get; set; } = string.Empty;
+
+    /// <summary>Thư mục giải nén gần nhất.</summary>
+    public string ExtractOutputFolder { get; set; } = string.Empty;
 
     public List<string> RecentSources { get; set; } = new();
 }

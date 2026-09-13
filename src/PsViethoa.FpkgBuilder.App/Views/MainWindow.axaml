@@ -4,6 +4,7 @@
         xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
         xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
         xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+        xmlns:views="using:PsViethoa.FpkgBuilder.App.Views"
         x:Class="PsViethoa.FpkgBuilder.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="PSVIETHOA FPKG Builder"
@@ -16,7 +17,7 @@
         <KeyBinding Gesture="F5" Command="{Binding BuildCommand}" />
         <KeyBinding Gesture="Ctrl+B" Command="{Binding BuildCommand}" />
         <KeyBinding Gesture="Cmd+B" Command="{Binding BuildCommand}" />
-        <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+        <KeyBinding Gesture="Escape" Command="{Binding CancelActiveCommand}" />
         <KeyBinding Gesture="Ctrl+L" Command="{Binding CopyLogCommand}" />
         <KeyBinding Gesture="Cmd+L" Command="{Binding CopyLogCommand}" />
     </Window.KeyBindings>
@@ -73,7 +74,7 @@
     </Window.Styles>
 
     <Panel>
-        <Grid RowDefinitions="Auto,*,Auto">
+        <Grid RowDefinitions="Auto,Auto,*,Auto">
 
             <!-- ============ HEADER ============ -->
             <Border Grid.Row="0" Background="{DynamicResource HeaderBrush}" Padding="22,12">
@@ -82,7 +83,7 @@
                         <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/icon-128.png" Width="40" Height="40" />
                         <StackPanel Spacing="1" VerticalAlignment="Center">
                             <TextBlock Text="PSVIETHOA FPKG Builder" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" LineHeight="24" />
-                            <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" />
+                            <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" TextTrimming="CharacterEllipsis" />
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
                                 <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
                                 <TextBlock Text="{l:T App.HeaderCredits}" FontSize="12" FontWeight="Medium" Foreground="#CBD5E1" LineHeight="16" VerticalAlignment="Center" />
@@ -126,7 +127,27 @@
             </Border>
 
             <!-- ============ BODY ============ -->
-            <Grid Grid.Row="1" ColumnDefinitions="580,18,*" Margin="22,18,22,12">
+            <!-- ============ THANH CHẾ ĐỘ: Tạo gói | Giải nén gói ============ -->
+            <Border Grid.Row="1" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="22,8">
+                <Border HorizontalAlignment="Left" Background="{DynamicResource MutedBrush}" CornerRadius="10" Padding="4" ToolTip.Tip="{l:T Mode.Tip}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsBuildMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Build}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <PathIcon Classes="sm" Data="{StaticResource IconPackage}" />
+                                <TextBlock Text="{l:T Mode.Build}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsExtractMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Extract}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <PathIcon Classes="sm" Data="{StaticResource IconPackageDown}" />
+                                <TextBlock Text="{l:T Mode.Extract}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <Grid Grid.Row="2" ColumnDefinitions="580,18,*" Margin="22,18,22,12" IsVisible="{Binding !IsExtractMode}">
 
                 <!-- ~~~ CỘT TRÁI: CẤU HÌNH ~~~ -->
                 <ScrollViewer Grid.Column="0" Name="SettingsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding CanEdit}">
@@ -144,22 +165,31 @@
 
                                 <StackPanel Classes="field">
                                     <TextBlock Classes="label" Text="{l:T Step1.SourceLabel}" />
-                                    <Grid ColumnDefinitions="*,8,Auto,6,Auto">
+                                    <!-- Ô đường dẫn chiếm trọn chiều ngang để nhìn được đường dẫn dài; ba nút chọn nguồn xếp thành hàng riêng bên dưới. -->
+                                    <StackPanel Spacing="8">
                                         <TextBox Name="SourceBox" Text="{Binding SourcePath, Mode=TwoWay}" Classes.error="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}"
-                                                 Watermark="{l:T Step1.SourceWatermark}" />
-                                        <Button Grid.Column="2" Command="{Binding BrowseSourceCommand}">
-                                            <StackPanel Classes="btn">
-                                                <PathIcon Data="{StaticResource IconFolderOpen}" />
-                                                <TextBlock Text="{l:T Common.Browse}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Grid.Column="4" Command="{Binding BrowseExFatCommand}" ToolTip.Tip="{l:T Step1.PickExFatTip}">
-                                            <StackPanel Classes="btn">
-                                                <PathIcon Data="{StaticResource IconDisk}" />
-                                                <TextBlock Text="{l:T Step1.PickExFat}" />
-                                            </StackPanel>
-                                        </Button>
-                                    </Grid>
+                                                 Watermark="{l:T Step1.SourceWatermark}" ToolTip.Tip="{Binding SourcePath}" />
+                                        <Grid ColumnDefinitions="*,8,*,8,*">
+                                            <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseSourceCommand}" ToolTip.Tip="{l:T Pick.Source}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                                    <TextBlock Text="{l:T Common.Browse}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Grid.Column="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseExFatCommand}" ToolTip.Tip="{l:T Step1.PickExFatTip}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconDisk}" />
+                                                    <TextBlock Text="{l:T Step1.PickExFat}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Grid.Column="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseGp5Command}" ToolTip.Tip="{l:T Step1.PickGp5Tip}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconFile}" />
+                                                    <TextBlock Text="{l:T Step1.PickGp5}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
                                     <TextBlock Classes="error" Text="{Binding SourceError}" IsVisible="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                     <ItemsControl ItemsSource="{Binding RecentSources}" IsVisible="{Binding HasRecent}" Margin="0,6,0,0">
                                         <ItemsControl.ItemsPanel>
@@ -197,6 +227,7 @@
                                                 <SelectableTextBlock Classes="mono small muted" Text="{Binding MetaSubtitle}" TextWrapping="Wrap" />
                                                 <WrapPanel IsVisible="{Binding HasSource}" Margin="0,2,0,0">
                                                     <Border Classes="chip accent" Margin="0,0,6,4" IsVisible="{Binding IsExFatSource}"><TextBlock Text="{Binding MetaExFatChip}" /></Border>
+                                                    <Border Classes="chip accent" Margin="0,0,6,4" IsVisible="{Binding IsGp5Source}"><TextBlock Text="{Binding MetaGp5Chip}" /></Border>
                                                     <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding HasParamJson}"><TextBlock Text="{Binding MetaVersion}" /></Border>
                                                     <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding HasParamJson}"><TextBlock Text="{Binding MetaSdk}" /></Border>
                                                     <Border Classes="chip info" Margin="0,0,6,4" IsVisible="{Binding MetaFiles, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding MetaFiles}" /></Border>
@@ -206,6 +237,7 @@
                                         </Grid>
                                         <ProgressBar Classes="thin" IsIndeterminate="True" IsVisible="{Binding IsScanning}" />
                                         <TextBlock Classes="hint" Margin="0" Text="{Binding MetaExFatRoot}" IsVisible="{Binding IsExFatSource}" />
+                                        <TextBlock Classes="hint" Margin="0" Text="{Binding MetaGp5Root}" IsVisible="{Binding IsGp5Source}" TextWrapping="Wrap" />
                                         <TextBlock Classes="hint" Margin="0" Text="{Binding PlayGoText}" IsVisible="{Binding HasSource}" />
                                     </StackPanel>
                                 </Border>
@@ -310,14 +342,14 @@
                                     </Border>
                                 </StackPanel>
 
-                                <Grid ColumnDefinitions="*,8,*,8,*">
+                                <Grid ColumnDefinitions="*,6,*,6,*,6,*">
                                     <RadioButton Grid.Column="0" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetFast, Mode=TwoWay}">
                                         <StackPanel Spacing="2">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <PathIcon Classes="sm" Data="{StaticResource IconBolt}" />
                                                 <TextBlock Text="{l:T Preset.fast.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.fast.Short}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.fast.Short}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton Grid.Column="2" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetBalanced, Mode=TwoWay}">
@@ -326,7 +358,7 @@
                                                 <PathIcon Classes="sm" Data="{StaticResource IconTune}" />
                                                 <TextBlock Text="{l:T Preset.balanced.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.balanced.Short}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.balanced.Short}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton Grid.Column="4" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetSmallest, Mode=TwoWay}">
@@ -335,7 +367,16 @@
                                                 <PathIcon Classes="sm" Data="{StaticResource IconZip}" />
                                                 <TextBlock Text="{l:T Preset.smallest.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.smallest.Short}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.smallest.Short}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton Grid.Column="6" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetMaximum, Mode=TwoWay}">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" />
+                                                <TextBlock Text="{l:T Preset.maximum.Name}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.maximum.Short}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                 </Grid>
@@ -365,6 +406,12 @@
                                         <TextBlock Classes="error" Text="{Binding ExFatError}" IsVisible="{Binding ExFatError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                     </StackPanel>
 
+                                    <StackPanel Classes="field" IsVisible="{Binding IsFolderSource}">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.SourceMode}" />
+                                        <ComboBox Name="SourceModeCombo" ItemsSource="{Binding SourceModeOptions}" SelectedIndex="{Binding SourceModeIndex, Mode=TwoWay}" />
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.SourceModeHint}" />
+                                    </StackPanel>
+
                                     <StackPanel Classes="field">
                                         <TextBlock Classes="label" Text="{l:T Advanced.Backend}" />
                                         <ComboBox Name="BackendCombo" ItemsSource="{Binding BackendOptions}" SelectedIndex="{Binding BackendIndex, Mode=TwoWay}" />
@@ -392,6 +439,51 @@
                                             <TextBlock Grid.Column="1" Classes="xs faint" Text="{l:T Advanced.LevelMax}" HorizontalAlignment="Right" />
                                         </Grid>
                                     </StackPanel>
+
+                                    <Grid ColumnDefinitions="*,14,*" IsEnabled="{Binding CompressionEnabled}">
+                                        <StackPanel Classes="field">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.Pfs}" />
+                                            <ComboBox Name="PfsCombo" ItemsSource="{Binding PfsOptions}" SelectedIndex="{Binding PfsIndex, Mode=TwoWay}" />
+                                            <TextBlock Classes="hint" Text="{l:T Advanced.PfsHint}" />
+                                            <TextBlock Classes="hint warning" Text="{l:T Advanced.PfsV3Firmware}" IsVisible="{Binding IsPfsV3}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Classes="field">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.BlockSize}" />
+                                            <ComboBox Name="BlockSizeCombo" ItemsSource="{Binding BlockSizeOptions}" SelectedIndex="{Binding BlockSizeIndex, Mode=TwoWay}" />
+                                            <TextBlock Classes="hint" Text="{l:T Advanced.BlockSizeHint}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Spacing="10" IsVisible="{Binding IsPfsV3}" IsEnabled="{Binding CompressionEnabled}">
+                                        <StackPanel Classes="field">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.Shuffle}" />
+                                            <ComboBox Name="ShuffleCombo" ItemsSource="{Binding ShuffleOptions}" SelectedIndex="{Binding ShuffleIndex, Mode=TwoWay}" IsEnabled="{Binding !ShuffleAnalysis}" />
+                                            <TextBlock Classes="hint" Text="{l:T Advanced.ShuffleHint}" />
+                                        </StackPanel>
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding ShuffleAnalysis, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.ShuffleAnalysis}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.ShuffleAnalysisHint}" TextWrapping="Wrap" />
+                                                <TextBlock Classes="xs warning" Text="{l:T Advanced.ShuffleLevelWarning}" TextWrapping="Wrap" IsVisible="{Binding ShowShuffleLevelWarning}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding SkipPfsCheck, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.SkipPfsCheck}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.SkipPfsCheckHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Grid ColumnDefinitions="Auto,12,*">
+                                        <ToggleSwitch IsChecked="{Binding LayoutOptimization, Mode=TwoWay}" VerticalAlignment="Top" />
+                                        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{l:T Advanced.Layout}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Advanced.LayoutHint}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
 
                                     <Grid ColumnDefinitions="*,14,*">
                                         <StackPanel Classes="field" IsEnabled="{Binding CompressionEnabled}">
@@ -505,7 +597,13 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="2">
                                     <TextBlock Classes="small secondary" Text="{Binding PhaseText}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Classes="xs muted" Text="{Binding EtaText}" IsVisible="{Binding EtaText, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock Classes="xs muted" Text="{Binding EtaText}" IsVisible="{Binding EtaText, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ThroughputText, Converter={x:Static conv:AppConverters.NotEmpty}}">
+                                            <PathIcon Classes="sm accent" Data="{StaticResource IconGauge}" Width="12" Height="12" VerticalAlignment="Center" />
+                                            <TextBlock Classes="xs accent mono" Text="{Binding ThroughputText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Classes="mono" FontSize="26" FontWeight="SemiBold" LineHeight="30" Text="{Binding PercentText}" VerticalAlignment="Center" />
                             </Grid>
@@ -622,10 +720,15 @@
                 </Grid>
             </Grid>
 
+            <!-- ============ CHẾ ĐỘ GIẢI NÉN GÓI ============ -->
+            <Panel Grid.Row="2" IsVisible="{Binding IsExtractMode}">
+                <views:ExtractionView DataContext="{Binding Extraction}" />
+            </Panel>
+
             <!-- ============ FOOTER ============ -->
-            <Border Grid.Row="2" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="22,8">
+            <Border Grid.Row="3" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="22,8">
                 <Grid ColumnDefinitions="*,Auto,Auto">
-                    <TextBlock Classes="small muted" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Classes="small muted" Text="{Binding FooterStatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Classes="small faint" Text="{Binding CreditsText}" VerticalAlignment="Center" Margin="0,0,18,0" />
                     <TextBlock Grid.Column="2" Classes="small faint" Text="{Binding AppVersionText}" VerticalAlignment="Center" />
                 </Grid>

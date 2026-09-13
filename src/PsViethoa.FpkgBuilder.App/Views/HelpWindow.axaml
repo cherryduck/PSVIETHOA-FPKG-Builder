@@ -63,6 +63,15 @@
 
                 <Border Classes="card">
                     <StackPanel Spacing="10">
+                        <TextBlock Classes="h2" Text="{l:T Help.Extract.Title}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Extract.1}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Extract.2}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Extract.3}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
                         <TextBlock Classes="h2" Text="{l:T Help.Keys.Title}" />
                         <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto">
                             <TextBlock Grid.Row="0" Grid.Column="0" Classes="mono secondary" Text="Ctrl/⌘ + B · F5" />
@@ -81,9 +90,7 @@
                     <StackPanel Spacing="12">
                         <TextBlock Classes="h2" Text="{l:T Help.Credits.Title}" />
                         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" >
-                            <Border Grid.Row="0" Width="40" Height="40" CornerRadius="12" Background="{DynamicResource AccentSoftBrush}" Margin="0,0,12,10" VerticalAlignment="Top">
-                                <PathIcon Classes="accent" Data="{StaticResource IconSparkle}" Width="20" Height="20" />
-                            </Border>
+                            <Image Grid.Row="0" Source="avares://PsViethoa.FpkgBuilder.App/Assets/icon-128.png" Width="40" Height="40" Margin="0,0,12,10" VerticalAlignment="Top" />
                             <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2" Margin="0,0,0,10">
                                 <TextBlock Classes="h3" Text="{l:T Help.Credits.Team}" TextWrapping="Wrap" />
                                 <TextBlock Classes="small muted" Text="{l:T Help.Credits.TeamRole}" TextWrapping="Wrap" />

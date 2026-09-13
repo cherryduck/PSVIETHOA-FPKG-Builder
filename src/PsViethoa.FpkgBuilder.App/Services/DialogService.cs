@@ -92,6 +92,14 @@ public sealed class DialogService
                 return false;
             }
 
+            // Trên macOS/Windows/Linux dùng lệnh hệ thống trước (Finder/Explorer/xdg-open) — ILauncher của Avalonia
+            // không mở được thư mục trên macOS trong một số trường hợp; đường dẫn được truyền qua ArgumentList nên
+            // khoảng trắng hay ký tự Unicode đều an toàn.
+            if (TryOpenWithShell(path))
+            {
+                return true;
+            }
+
             var launcher = TopLevel.GetTopLevel(_owner)?.Launcher;
             if (launcher != null)
             {
@@ -105,6 +113,48 @@ public sealed class DialogService
         return false;
     }
 
+    /// <summary>Mở tệp/thư mục/URL bằng lệnh của hệ điều hành: open (macOS), explorer.exe (Windows), xdg-open (Linux).</summary>
+    private static bool TryOpenWithShell(string target)
+    {
+        try
+        {
+            var start = new System.Diagnostics.ProcessStartInfo { UseShellExecute = false, CreateNoWindow = true };
+            if (OperatingSystem.IsMacOS())
+            {
+                start.FileName = "/usr/bin/open";
+                start.ArgumentList.Add(target);
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                start.FileName = "explorer.exe";
+                start.ArgumentList.Add(target);
+            }
+            else
+            {
+                start.FileName = "xdg-open";
+                start.ArgumentList.Add(target);
+            }
+
+            using var process = System.Diagnostics.Process.Start(start);
+            if (process == null)
+            {
+                return false;
+            }
+
+            // "open"/xdg-open thoát ngay; explorer.exe có thể trả mã khác 0 dù đã mở — chỉ coi là thất bại khi không chạy được.
+            if (!OperatingSystem.IsWindows() && process.WaitForExit(3000) && process.ExitCode != 0)
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Mở một tệp bằng ứng dụng mặc định của hệ điều hành.</summary>
     public async Task<bool> OpenFileAsync(string path)
     {
@@ -113,6 +163,11 @@ public sealed class DialogService
             if (!File.Exists(path))
             {
                 return false;
+            }
+
+            if (TryOpenWithShell(path))
+            {
+                return true;
             }
 
             var launcher = TopLevel.GetTopLevel(_owner)?.Launcher;
@@ -133,10 +188,12 @@ public sealed class DialogService
         try
         {
             var launcher = TopLevel.GetTopLevel(_owner)?.Launcher;
-            if (launcher != null)
+            if (launcher != null && await launcher.LaunchUriAsync(new Uri(uri)))
             {
-                return await launcher.LaunchUriAsync(new Uri(uri));
+                return true;
             }
+
+            return TryOpenWithShell(uri);
         }
         catch (Exception)
         {

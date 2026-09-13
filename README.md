@@ -43,7 +43,7 @@ Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. 
 
 - **Updated LibProsperoPkg engine** — overlapping reads / compression / writes with fewer intermediate copies, block deduplication and an in‑build compression cache, improved built‑in Kraken (especially levels 8–9), automatic fallback to built‑in Kraken when Oodle is unavailable, file‑handling and cancellation fixes, and existing packages are preserved if a rebuild fails.
 - **PFS v2 / v3 selection**, configurable **Kraken block size** (128–256 KiB), **pre‑compression shuffle patterns** and **automatic shuffle analysis** (PFS v3 texture optimisation through permutation selection — very slow, fully effective only at Kraken level 9), optional **physical layout optimisation**. PFS v3 packages need **PS5 firmware 7.00 or newer**; the app warns about it.
-- **Presets re‑mapped to the new encoder**: the default is now **Sony standard** = Kraken 4, the very encoder the 2.0.0 engine used for its "Kraken 7" (same size, same speed, plus dedup/layout gains); **Smallest** = Kraken 7 *Optimal* is a new deeper mode (~3 % smaller, 5–6× slower); new **Maximum** preset (Kraken 9 + PFS v3 + shuffle analysis).
+- **Presets re‑mapped to the new encoder**: the default is now **Standard** = Kraken 4, the very encoder the 2.0.0 engine used for its "Kraken 7" (same size, same speed, plus dedup/layout gains); **Smallest** = Kraken 7 *Optimal* is a new deeper mode (~3 % smaller, 5–6× slower); new **Maximum** preset (Kraken 9 + PFS v3 + shuffle analysis).
 - Live **throughput** in the build panel, smoother progress on multi‑GB files, re‑tuned ETA.
 - CLI: `--pfs`, `--block-size`, `--shuffle`, `--shuffle-analysis`, `--shuffle-prediction-level`, `--skip-pfs-input-check`, `--no-layout-optimization`, `--source-mode`, `--project`, `--preset sony|standard`; new `pkg-info`, `pkg-list`, `pkg-extract` commands.
 - **Extract packages** — new **Extract PKG** mode (Build | Extract bar under the header): open a `.pkg` (or drop it onto the window) to see the FIH / CNT headers, every `param.json` field, the icon and the full file list of the inner PPR‑PFS image; tick files or folders and extract them (or the whole package), or export the `sce_sys` entries. PLAINTEXT_NOAUTH packages are read straight from the `.pkg` in 4 MiB chunks without rebuilding the image; Native (AES‑XTS) packages are decrypted to the temp folder first. CLI: `pkg-info`, `pkg-list`, `pkg-extract`.
@@ -59,7 +59,7 @@ See [CHANGELOG.md](CHANGELOG.md) for details.
 | **Languages** | Vietnamese / English, switch instantly in the header, choice is remembered. CLI takes `--lang vi\|en` or the `FPKG_LANG` variable. |
 | **Packaging** | FIH debug image, PLAINTEXT_NOAUTH or Native AES‑XTS, APP / Homebrew / DLC, automatic PlayGo (1–64 chunks), SDK override (1–11), passcode, deterministic builds. |
 | **Compression** | Built‑in **managed Kraken encoder** (runs everywhere, multi‑threaded) or **native Oodle** via `libScePubTools.dll` (Windows, automatic fallback to built‑in Kraken). **PFS v2** (default, broadest compatibility) or **PFS v3** (pre‑compression shuffle patterns, automatic per‑block shuffle analysis), Kraken block size 128–256 KiB, physical layout optimisation. |
-| **Speed** | Presets **Fast · Sony standard · Smallest · Maximum**. **Sony standard** (default) = Kraken level 4, the very encoder the 2.0.0 engine used for its "Kraken 7": same size, same speed. **Smallest** = Kraken 7 *Optimal* — a new deep-compression mode, about 3 % smaller but 5–6× slower. **Maximum** = Kraken 9 + PFS v3 + shuffle analysis. Custom level `-4…9`, thread count, and an uncompressed mode for quick tests. |
+| **Speed** | Presets **Fast · Standard · Smallest · Maximum**. **Standard** (default) = Kraken level 4, the very encoder the 2.0.0 engine used for its "Kraken 7": same size, same speed. **Smallest** = Kraken 7 *Optimal* — a new deep-compression mode, about 3 % smaller but 5–6× slower. **Maximum** = Kraken 9 + PFS v3 + shuffle analysis. Custom level `-4…9`, thread count, and an uncompressed mode for quick tests. |
 | **Before building** | Reads metadata + icon, scans size in parallel, **checks free space** on the temp/output volumes, and **detects & cleans OS junk files**. |
 | **While building** | Weighted overall progress bar with **ETA** and live **throughput**, byte‑weighted progress inside multi‑GB files, virtualized 20k‑line log, safe cancel, and **sleep prevention** (`caffeinate` / `SetThreadExecutionState`). |
 | **After building** | Verifies the FIH / outer‑PFS structure, optional SHA‑256, result panel, copy/save the log, open the output folder. |
@@ -79,7 +79,7 @@ Each archive also contains the `fpkg-cli` command‑line tool.
 
 1. Prepare an extracted PS5 app folder (with a `sce_sys` folder and `eboot.bin`), **or** point at a `.exfat` disk image.
 2. In **step 1**, click **Browse…** / **.exfat image**, or drop the folder/image onto the window. Content ID, title, version, size, and junk files are detected automatically.
-3. Pick a speed preset in **step 3** (Sony standard is the default and equals the old engine's "Kraken 7"; Smallest = level 7 Optimal, slow) or open the advanced options.
+3. Pick a speed preset in **step 3** (Standard is the default and equals the old engine's "Kraken 7"; Smallest = level 7 Optimal, slow) or open the advanced options.
 4. Click **Build PKG** (`Ctrl/⌘+B` or `F5`). Watch the progress, ETA, and log; the structure is verified automatically when it finishes.
 
 ## Command line
@@ -88,7 +88,7 @@ Each archive also contains the `fpkg-cli` command‑line tool.
 fpkg-cli info --lang en
 fpkg-cli inspect "/path/PPSA12345"                 # folder
 fpkg-cli inspect "/path/PPSA12345.exfat"           # exFAT image — read directly, no mount
-fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Sony standard (level 4), exfat auto
+fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Standard (level 4), exfat auto
 fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out" --exfat extract
 fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset fast --clean-junk
 fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset maximum       # Kraken 9 + PFS v3 + shuffle analysis
@@ -115,15 +115,15 @@ Measured on an Apple‑Silicon Mac (15 logical cores), built‑in Kraken, LibPro
 
 | Test | Config | Time | Package |
 |---|---|---|---|
-| 400 MB synthetic | Fast (Kraken 2) / **Sony standard (4, default)** | 6.8 s / 7.5 s | 254.3 MB / 254.2 MB |
+| 400 MB synthetic | Fast (Kraken 2) / **Standard (4, default)** | 6.8 s / 7.5 s | 254.3 MB / 254.2 MB |
 | 400 MB synthetic | Smallest (Kraken 7) | 16.4 s | 250.3 MB |
 | 400 MB synthetic | Maximum (Kraken 9 + PFS v3 + shuffle analysis) | 47.6 s | 249.8 MB |
 | 813 MB real game (`PPSA06438`, mounted .exfat) | Smallest / Fast | 23.4 s / 4.9 s | 257.2 MB / 262.8 MB |
 | **21.3 GB real game** (`PPSA27625`, mounted .exfat) | Fast (Kraken 2) | 1 min 59 s | 8.86 GiB |
-| **21.3 GB real game** | **Sony standard (Kraken 4, default)** | **2 min 13 s** | **8.86 GiB** |
+| **21.3 GB real game** | **Standard (Kraken 4, default)** | **2 min 13 s** | **8.86 GiB** |
 | **21.3 GB real game** | Smallest (Kraken 7 Optimal) | 12 min 49 s | 8.54 GiB |
 
-For comparison, the LibProsperoPkg build shipped with 2.0.0 built the same 21.3 GB game in 3 min 40 s to a 9.03 GiB package. Measured side by side on the same 400 MB set, the 2.0.0 engine produced **identical** packages at levels 4 and 7 (254,212,194 bytes) — its "level 7" was the Normal encoder — and the 2.1.0 engine at level 4 reproduces that result (254,211,794 bytes) at the same speed. So **Sony standard** (the default) gives you the old "Kraken 7" size at the old speed, and on the 21 GB game it is even faster and smaller than before (2 min 13 s, 8.86 GiB). **Smallest** is a genuinely new *Optimal* mode: another 3.5 % (8.54 GiB) for a 5–6× longer build on already‑compressed game data. Levels 4–6 produce identical output; level 7 and up switch to the optimal parser.
+For comparison, the LibProsperoPkg build shipped with 2.0.0 built the same 21.3 GB game in 3 min 40 s to a 9.03 GiB package. Measured side by side on the same 400 MB set, the 2.0.0 engine produced **identical** packages at levels 4 and 7 (254,212,194 bytes) — its "level 7" was the Normal encoder — and the 2.1.0 engine at level 4 reproduces that result (254,211,794 bytes) at the same speed. So **Standard** (the default) gives you the old "Kraken 7" size at the old speed, and on the 21 GB game it is even faster and smaller than before (2 min 13 s, 8.86 GiB). **Smallest** is a genuinely new *Optimal* mode: another 3.5 % (8.54 GiB) for a 5–6× longer build on already‑compressed game data. Levels 4–6 produce identical output; level 7 and up switch to the optimal parser.
 
 ## Build from source
 

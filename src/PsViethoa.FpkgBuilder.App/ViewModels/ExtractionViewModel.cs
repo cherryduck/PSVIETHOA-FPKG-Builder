@@ -119,6 +119,13 @@ public sealed partial class ExtractionViewModel : ObservableObject
 
         _packagePath = settings.ExtractPackagePath ?? string.Empty;
         _outputFolder = settings.ExtractOutputFolder ?? string.Empty;
+        // Thư mục xuất khôi phục từ phiên trước mà chính là gợi ý "<gói>-extract" của gói cũ thì vẫn coi là gợi ý tự động,
+        // để khi mở gói khác nó được thay bằng gợi ý mới (không dính thư mục của gói trước).
+        if (!string.IsNullOrWhiteSpace(settings.ExtractPackagePath) && _outputFolder.Length > 0 &&
+            string.Equals(_outputFolder.Trim(), DefaultOutputFor(settings.ExtractPackagePath), StringComparison.OrdinalIgnoreCase))
+        {
+            _suggestedOutput = _outputFolder.Trim();
+        }
         Loc.Current.LanguageChanged += (_, _) => OnLanguageChanged();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Shutdown();
         ShowEmpty();
@@ -591,15 +598,28 @@ public sealed partial class ExtractionViewModel : ObservableObject
         }
     }
 
+    /// <summary>Gợi ý thư mục xuất mặc định cho một gói: "&lt;tên gói&gt;-extract" cạnh tệp .pkg (rỗng nếu không xác định được).</summary>
+    private static string DefaultOutputFor(string packagePath)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(packagePath);
+            return string.IsNullOrEmpty(directory) ? string.Empty : Path.Combine(directory, Path.GetFileNameWithoutExtension(packagePath) + "-extract");
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
+    }
+
     private void SuggestOutputFolder(string packagePath)
     {
-        var directory = Path.GetDirectoryName(packagePath);
-        if (string.IsNullOrEmpty(directory))
+        var suggestion = DefaultOutputFor(packagePath);
+        if (suggestion.Length == 0)
         {
             return;
         }
 
-        var suggestion = Path.Combine(directory, Path.GetFileNameWithoutExtension(packagePath) + "-extract");
         var current = OutputFolder.Trim();
         if (current.Length == 0 || string.Equals(current, _suggestedOutput, StringComparison.OrdinalIgnoreCase))
         {

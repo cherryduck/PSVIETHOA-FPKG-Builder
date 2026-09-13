@@ -43,7 +43,7 @@ Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng
 
 - **Engine LibProsperoPkg được cập nhật** — đọc / nén / ghi gối đầu nhau với ít bản sao trung gian hơn, khử trùng lặp khối và bộ đệm nén dùng trong lượt tạo gói, Kraken tích hợp được cải thiện (nhất là mức 8–9), tự chuyển sang Kraken tích hợp khi không có Oodle, sửa lỗi xử lý tệp và hủy giữa chừng, và gói đã có được giữ nguyên nếu lần tạo lại thất bại.
 - **Chọn PFS v2 / v3**, **kích thước khối nén Kraken** tuỳ chỉnh (128–256 KiB), **mẫu shuffle trước nén** và **tự phân tích chọn shuffle tốt nhất** (tối ưu texture của PFS v3 bằng cách chọn hoán vị — rất chậm, chỉ phát huy đầy đủ ở Kraken mức 9), **tối ưu bố cục vật lý** tuỳ chọn. Gói PFS v3 cần **firmware PS5 7.00 trở lên**; ứng dụng sẽ cảnh báo về điều này.
-- **Preset được ánh xạ lại theo bộ nén mới**: mặc định giờ là **Chuẩn Sony** = Kraken 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7" (cùng kích thước, cùng tốc độ, cộng thêm lợi ích từ khử trùng lặp khối / tối ưu bố cục); **Nhỏ nhất** = Kraken 7 *Optimal* là chế độ nén sâu mới (nhỏ hơn ~3 %, chậm gấp 5–6 lần); preset **Tối đa** mới (Kraken 9 + PFS v3 + phân tích shuffle).
+- **Preset được ánh xạ lại theo bộ nén mới**: mặc định giờ là **Tiêu chuẩn** = Kraken 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7" (cùng kích thước, cùng tốc độ, cộng thêm lợi ích từ khử trùng lặp khối / tối ưu bố cục); **Nhỏ nhất** = Kraken 7 *Optimal* là chế độ nén sâu mới (nhỏ hơn ~3 %, chậm gấp 5–6 lần); preset **Tối đa** mới (Kraken 9 + PFS v3 + phân tích shuffle).
 - Hiển thị **thông lượng** thực tế trong bảng tạo gói, tiến trình mượt hơn với các tệp nhiều GB, ước tính thời gian còn lại được tinh chỉnh lại.
 - CLI: `--pfs`, `--block-size`, `--shuffle`, `--shuffle-analysis`, `--shuffle-prediction-level`, `--skip-pfs-input-check`, `--no-layout-optimization`, `--source-mode`, `--project`, `--preset sony|standard`; lệnh mới `pkg-info`, `pkg-list`, `pkg-extract`.
 - **Giải nén gói có sẵn** — chế độ **Giải nén gói** mới (thanh Tạo gói | Giải nén gói ngay dưới header): mở một tệp `.pkg` (hoặc kéo–thả vào cửa sổ) để xem header FIH / CNT, mọi trường `param.json`, icon và toàn bộ danh sách tệp của ảnh trong PPR‑PFS; tích chọn tệp hoặc thư mục rồi giải nén chúng (hoặc cả gói), hay xuất các entry `sce_sys`. Gói PLAINTEXT_NOAUTH được đọc thẳng từ `.pkg` theo từng khối 4 MiB mà không dựng lại ảnh; gói Native (AES‑XTS) được giải mã ra thư mục tạm trước. CLI: `pkg-info`, `pkg-list`, `pkg-extract`.
@@ -59,7 +59,7 @@ Xem [CHANGELOG.md](../CHANGELOG.md) để biết chi tiết.
 | **Ngôn ngữ** | Tiếng Việt / English, chuyển ngay trên header, lựa chọn được ghi nhớ. CLI nhận `--lang vi\|en` hoặc biến môi trường `FPKG_LANG`. |
 | **Tạo gói** | Ảnh FIH debug, PLAINTEXT_NOAUTH hoặc Native AES‑XTS, APP / Homebrew / DLC, PlayGo tự động (1–64 khối), ghi đè SDK (1–11), passcode, bản dựng xác định (deterministic). |
 | **Nén** | **Bộ nén Kraken tích hợp** (thuần .NET, chạy trên mọi hệ điều hành, đa luồng) hoặc **Oodle gốc** qua `libScePubTools.dll` (Windows, tự chuyển về Kraken tích hợp khi không có). **PFS v2** (mặc định, tương thích rộng nhất) hoặc **PFS v3** (mẫu shuffle trước nén, tự phân tích shuffle cho từng khối), kích thước khối Kraken 128–256 KiB, tối ưu bố cục vật lý. |
-| **Tốc độ** | Preset **Nhanh · Chuẩn Sony · Nhỏ nhất · Tối đa**. **Chuẩn Sony** (mặc định) = Kraken mức 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7": cùng kích thước, cùng tốc độ. **Nhỏ nhất** = Kraken 7 *Optimal* — chế độ nén sâu mới, nhỏ hơn khoảng 3 % nhưng chậm gấp 5–6 lần. **Tối đa** = Kraken 9 + PFS v3 + phân tích shuffle. Tuỳ chỉnh mức nén `-4…9`, số luồng, và chế độ không nén để test nhanh. |
+| **Tốc độ** | Preset **Nhanh · Tiêu chuẩn · Nhỏ nhất · Tối đa**. **Tiêu chuẩn** (mặc định) = Kraken mức 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7": cùng kích thước, cùng tốc độ. **Nhỏ nhất** = Kraken 7 *Optimal* — chế độ nén sâu mới, nhỏ hơn khoảng 3 % nhưng chậm gấp 5–6 lần. **Tối đa** = Kraken 9 + PFS v3 + phân tích shuffle. Tuỳ chỉnh mức nén `-4…9`, số luồng, và chế độ không nén để test nhanh. |
 | **Trước khi tạo gói** | Đọc metadata + icon, quét dung lượng song song, **kiểm tra dung lượng trống** trên ổ tạm / ổ xuất, và **phát hiện & dọn tệp rác hệ điều hành**. |
 | **Trong khi tạo gói** | Thanh tiến trình tổng thể theo trọng số giai đoạn kèm **thời gian còn lại (ETA)** và **thông lượng** thực tế, tiến trình tính theo byte ngay bên trong các tệp nhiều GB, nhật ký ảo hoá 20.000 dòng, hủy an toàn, và **chống máy ngủ** (`caffeinate` / `SetThreadExecutionState`). |
 | **Sau khi tạo gói** | Kiểm tra cấu trúc FIH / PFS ngoài, SHA‑256 tuỳ chọn, bảng kết quả, sao chép / lưu nhật ký, mở thư mục kết quả. |
@@ -79,7 +79,7 @@ Mỗi gói nén đều kèm sẵn công cụ dòng lệnh `fpkg-cli`.
 
 1. Chuẩn bị thư mục ứng dụng PS5 đã giải nén (có thư mục `sce_sys` và `eboot.bin`), **hoặc** trỏ tới một ảnh đĩa `.exfat`.
 2. Ở **bước 1**, nhấn **Chọn…** / **Ảnh .exfat**, hoặc kéo–thả thư mục / ảnh vào cửa sổ. Content ID, tên, phiên bản, dung lượng và tệp rác được nhận diện tự động.
-3. Chọn preset tốc độ ở **bước 3** (Chuẩn Sony là mặc định và tương đương "Kraken 7" của engine cũ; Nhỏ nhất = mức 7 Optimal, chậm) hoặc mở phần tuỳ chọn nâng cao.
+3. Chọn preset tốc độ ở **bước 3** (Tiêu chuẩn là mặc định và tương đương "Kraken 7" của engine cũ; Nhỏ nhất = mức 7 Optimal, chậm) hoặc mở phần tuỳ chọn nâng cao.
 4. Nhấn **Tạo gói PKG** (`Ctrl/⌘+B` hoặc `F5`). Theo dõi tiến trình, thời gian còn lại và nhật ký; khi xong, cấu trúc gói được kiểm tra tự động.
 
 ## Dòng lệnh
@@ -115,15 +115,15 @@ Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại
 
 | Bài đo | Cấu hình | Thời gian | Gói |
 |---|---|---|---|
-| 400 MB dữ liệu tổng hợp | Nhanh (Kraken 2) / **Chuẩn Sony (4, mặc định)** | 6.8 giây / 7.5 giây | 254.3 MB / 254.2 MB |
+| 400 MB dữ liệu tổng hợp | Nhanh (Kraken 2) / **Tiêu chuẩn (4, mặc định)** | 6.8 giây / 7.5 giây | 254.3 MB / 254.2 MB |
 | 400 MB dữ liệu tổng hợp | Nhỏ nhất (Kraken 7) | 16.4 giây | 250.3 MB |
 | 400 MB dữ liệu tổng hợp | Tối đa (Kraken 9 + PFS v3 + phân tích shuffle) | 47.6 giây | 249.8 MB |
 | Game thật 813 MB (`PPSA06438`, ảnh .exfat được gắn) | Nhỏ nhất / Nhanh | 23.4 giây / 4.9 giây | 257.2 MB / 262.8 MB |
 | **Game thật 21.3 GB** (`PPSA27625`, ảnh .exfat được gắn) | Nhanh (Kraken 2) | 1 phút 59 giây | 8.86 GiB |
-| **Game thật 21.3 GB** | **Chuẩn Sony (Kraken 4, mặc định)** | **2 phút 13 giây** | **8.86 GiB** |
+| **Game thật 21.3 GB** | **Tiêu chuẩn (Kraken 4, mặc định)** | **2 phút 13 giây** | **8.86 GiB** |
 | **Game thật 21.3 GB** | Nhỏ nhất (Kraken 7 Optimal) | 12 phút 49 giây | 8.54 GiB |
 
-Để so sánh, bản LibProsperoPkg đi kèm 2.0.0 tạo gói cùng game 21.3 GB này trong 3 phút 40 giây, ra gói 9.03 GiB. Đo song song trên cùng bộ dữ liệu 400 MB, engine 2.0.0 cho ra gói **giống hệt nhau** ở mức 4 và mức 7 (254,212,194 byte) — "mức 7" của nó thực chất là bộ nén Normal — còn engine 2.1.0 ở mức 4 tái tạo đúng kết quả đó (254,211,794 byte) với cùng tốc độ. Vì vậy **Chuẩn Sony** (mặc định) cho bạn kích thước "Kraken 7" cũ với tốc độ cũ, và với game 21 GB còn nhanh hơn và nhỏ hơn trước (2 phút 13 giây, 8.86 GiB). **Nhỏ nhất** là chế độ *Optimal* thực sự mới: giảm thêm 3.5 % (8.54 GiB) đổi lấy thời gian tạo gói lâu gấp 5–6 lần trên dữ liệu game vốn đã được nén sẵn. Mức 4–6 cho ra kết quả giống hệt nhau; từ mức 7 trở lên chuyển sang bộ phân tích (parser) optimal.
+Để so sánh, bản LibProsperoPkg đi kèm 2.0.0 tạo gói cùng game 21.3 GB này trong 3 phút 40 giây, ra gói 9.03 GiB. Đo song song trên cùng bộ dữ liệu 400 MB, engine 2.0.0 cho ra gói **giống hệt nhau** ở mức 4 và mức 7 (254,212,194 byte) — "mức 7" của nó thực chất là bộ nén Normal — còn engine 2.1.0 ở mức 4 tái tạo đúng kết quả đó (254,211,794 byte) với cùng tốc độ. Vì vậy **Tiêu chuẩn** (mặc định) cho bạn kích thước "Kraken 7" cũ với tốc độ cũ, và với game 21 GB còn nhanh hơn và nhỏ hơn trước (2 phút 13 giây, 8.86 GiB). **Nhỏ nhất** là chế độ *Optimal* thực sự mới: giảm thêm 3.5 % (8.54 GiB) đổi lấy thời gian tạo gói lâu gấp 5–6 lần trên dữ liệu game vốn đã được nén sẵn. Mức 4–6 cho ra kết quả giống hệt nhau; từ mức 7 trở lên chuyển sang bộ phân tích (parser) optimal.
 
 ## Build từ mã nguồn
 

@@ -116,6 +116,7 @@ Measured on an Apple‑Silicon Mac (15 logical cores), built‑in Kraken, LibPro
 | Test | Config | Time | Package |
 |---|---|---|---|
 | 400 MB synthetic | Fast (Kraken 2) / **Standard (4, default)** | 6.8 s / 7.5 s | 254.3 MB / 254.2 MB |
+| 352 MB synthetic, **30,005 files** | Standard (4) | 14 s (scan 0.12 s) | 204 MB |
 | 400 MB synthetic | Smallest (Kraken 7) | 16.4 s | 250.3 MB |
 | 400 MB synthetic | Maximum (Kraken 9 + PFS v3 + shuffle analysis) | 47.6 s | 249.8 MB |
 | 813 MB real game (`PPSA06438`, mounted .exfat) | Smallest / Fast | 23.4 s / 4.9 s | 257.2 MB / 262.8 MB |

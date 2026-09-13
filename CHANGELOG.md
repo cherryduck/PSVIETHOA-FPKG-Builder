@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.2 — 2026-09-14
+
+- **Output folders follow the source automatically.** New "Auto from source" (build) and "Auto from package" (extract) toggles, on by default: while on, the output folder is always "<source>-pkg" / "<package>-extract" next to the source and updates the moment you pick another source (browse, drop, recent, typed path); the field is locked. Switch it off to choose your own folder (picking a folder in extract mode switches it off automatically). The choice is remembered.
+- Verified with a 30,005-file / 352 MB folder: scan 0.12 s, full build 14 s, listing the resulting package 0.5 s — file count barely matters, data size does.
+
 ## 2.1.1 — 2026-09-14
 
 - **Extracted app trees are now in Sony layout.** The "original app tree" option merges param.json, icon0.png, pic0.png and the playgo files from the CNT into `sce_sys/`, so the output folder can be used directly as a source to build an FPKG again (CLI: `pkg-extract` does the same; `--no-sce-sys` skips it, `--cnt` still exports the raw CNT tables to `cnt/`).

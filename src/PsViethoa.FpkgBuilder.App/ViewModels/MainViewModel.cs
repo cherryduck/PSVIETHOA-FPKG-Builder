@@ -46,6 +46,7 @@ public sealed partial class MainViewModel : ObservableObject
     private BuildProgress? _lastProgress;
     private DateTime _lastProgressAt;
     private string? _suggestedTemporary;
+
     private bool _attemptedBuild;
     private bool _syncingPreset;
     private bool _syncingLanguage;
@@ -430,6 +431,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _etaText = string.Empty;
     [ObservableProperty] private string _throughputText = string.Empty;
     [ObservableProperty] private string _elapsedText = string.Empty;
+    /// <summary>Thư mục xuất luôn tự đặt theo nguồn (mặc định bật).</summary>
+    [ObservableProperty] private bool _autoOutputFolder = true;
+
     [ObservableProperty] private string _statusText = string.Empty;
 
     /// <summary>Dòng trạng thái ở chân cửa sổ: theo chế độ đang dùng (tạo gói hoặc giải nén gói).</summary>
@@ -757,6 +761,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             SourcePath = s.SourcePath;
             OutputFolder = s.OutputFolder;
+            AutoOutputFolder = s.OutputFolderAuto;
             var defaultTemporary = string.IsNullOrWhiteSpace(s.OutputFolder) ? string.Empty : BuildPreparer.SuggestTemporaryFolder(s.OutputFolder);
             var keepSaved = !string.IsNullOrWhiteSpace(s.TemporaryFolder) &&
                             (string.IsNullOrWhiteSpace(s.OutputFolder) || DiskSpaceAdvisor.IsSameVolume(s.TemporaryFolder, s.OutputFolder));
@@ -811,6 +816,7 @@ public sealed partial class MainViewModel : ObservableObject
         var s = _settings;
         s.SourcePath = SourcePath.Trim();
         s.OutputFolder = OutputFolder.Trim();
+        s.OutputFolderAuto = AutoOutputFolder;
         s.TemporaryFolder = TemporaryFolder.Trim();
         s.ContentId = ContentId.Trim();
         s.Title = Title.Trim();
@@ -928,19 +934,41 @@ public sealed partial class MainViewModel : ObservableObject
     public void SetSource(string path)
     {
         SourcePath = path;
-        if (string.IsNullOrWhiteSpace(OutputFolder))
-        {
-            try
-            {
-                OutputFolder = BuildPreparer.SuggestOutputFolder(path);
-            }
-            catch (Exception)
-            {
-            }
-        }
-
+        ApplyOutputSuggestion(path);
         _sourceDebounce.Stop();
         ReloadMetadata();
+    }
+
+    /// <summary>
+    /// Khi "Tự đặt theo nguồn" đang bật, thư mục xuất luôn là "&lt;nguồn&gt;-pkg" cạnh nguồn hiện tại
+    /// (đổi nguồn là đổi theo); tắt đi thì người dùng tự chọn và ứng dụng không đụng vào nữa.
+    /// </summary>
+    private void ApplyOutputSuggestion(string source)
+    {
+        if (!AutoOutputFolder || SourceLocator.Detect(source) == SourceKind.None)
+        {
+            return;
+        }
+
+        try
+        {
+            OutputFolder = BuildPreparer.SuggestOutputFolder(source);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    /// <summary>Ô thư mục xuất chỉ sửa tay được khi tắt "Tự đặt theo nguồn".</summary>
+    public bool CanEditOutput => !AutoOutputFolder;
+
+    partial void OnAutoOutputFolderChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanEditOutput));
+        if (value)
+        {
+            ApplyOutputSuggestion(SourcePath.Trim());
+        }
     }
 
     [RelayCommand]
@@ -1044,6 +1072,9 @@ public sealed partial class MainViewModel : ObservableObject
             ShowEmptyMetadata();
             return;
         }
+
+        // Gõ tay hoặc dán đường dẫn nguồn hợp lệ cũng tự đặt thư mục xuất như khi chọn bằng nút.
+        ApplyOutputSuggestion(source);
 
         var cancellation = new CancellationTokenSource();
         _metadataCancellation = cancellation;

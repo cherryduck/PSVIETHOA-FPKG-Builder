@@ -162,10 +162,15 @@
                         </Border>
 
                         <StackPanel Classes="field">
-                            <TextBlock Classes="label" Text="{l:T Extract.OutputLabel}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="label" Text="{l:T Extract.OutputLabel}" />
+                                <CheckBox Grid.Column="1" IsChecked="{Binding AutoOutputFolder, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" Margin="0,-8,0,0" Padding="6,0,0,0" MinHeight="0" ToolTip.Tip="{l:T Extract.OutputAutoTip}">
+                                    <TextBlock Text="{l:T Extract.OutputAuto}" FontSize="12.5" />
+                                </CheckBox>
+                            </Grid>
                             <Grid ColumnDefinitions="*,8,Auto">
-                                <TextBox Name="OutputBox" Text="{Binding OutputFolder, Mode=TwoWay}" Watermark="{l:T Extract.OutputWatermark}" IsEnabled="{Binding CanEdit}" />
-                                <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}">
+                                <TextBox Name="OutputBox" Text="{Binding OutputFolder, Mode=TwoWay}" Watermark="{l:T Extract.OutputWatermark}" IsEnabled="{Binding CanEditOutput}" />
+                                <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding CanEditOutput}">
                                     <StackPanel Classes="btn">
                                         <PathIcon Data="{StaticResource IconFolder}" />
                                         <TextBlock Text="{l:T Common.Browse}" />

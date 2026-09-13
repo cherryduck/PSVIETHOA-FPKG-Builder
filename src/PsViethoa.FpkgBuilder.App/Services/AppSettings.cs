@@ -19,6 +19,9 @@ public sealed class AppSettings
 
     public string OutputFolder { get; set; } = string.Empty;
 
+    /// <summary>Bật = thư mục xuất luôn tự đặt theo nguồn ("&lt;nguồn&gt;-pkg" cạnh nguồn); tắt = người dùng tự chọn.</summary>
+    public bool OutputFolderAuto { get; set; } = true;
+
     public string TemporaryFolder { get; set; } = string.Empty;
 
     public string ContentId { get; set; } = string.Empty;
@@ -81,6 +84,9 @@ public sealed class AppSettings
 
     /// <summary>Thư mục giải nén gần nhất.</summary>
     public string ExtractOutputFolder { get; set; } = string.Empty;
+
+    /// <summary>Bật = thư mục xuất của chế độ giải nén luôn tự đặt theo gói ("&lt;gói&gt;-extract" cạnh tệp .pkg).</summary>
+    public bool ExtractOutputAuto { get; set; } = true;
 
     public List<string> RecentSources { get; set; } = new();
 }

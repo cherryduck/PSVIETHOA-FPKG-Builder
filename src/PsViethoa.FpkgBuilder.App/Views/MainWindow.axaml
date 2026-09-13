@@ -257,11 +257,16 @@
                                 </Border>
 
                                 <StackPanel Classes="field">
-                                    <TextBlock Classes="label" Text="{l:T Step1.OutputLabel}" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Classes="label" Text="{l:T Step1.OutputLabel}" />
+                                        <CheckBox Grid.Column="1" IsChecked="{Binding AutoOutputFolder, Mode=TwoWay}" Margin="0,-8,0,0" Padding="6,0,0,0" MinHeight="0" ToolTip.Tip="{l:T Step1.OutputAutoTip}">
+                                            <TextBlock Text="{l:T Step1.OutputAuto}" FontSize="12.5" />
+                                        </CheckBox>
+                                    </Grid>
                                     <Grid ColumnDefinitions="*,8,Auto">
                                         <TextBox Name="OutputBox" Text="{Binding OutputFolder, Mode=TwoWay}" Classes.error="{Binding OutputError, Converter={x:Static conv:AppConverters.NotEmpty}}"
-                                                 Watermark="{l:T Step1.OutputWatermark}" />
-                                        <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}">
+                                                 Watermark="{l:T Step1.OutputWatermark}" IsEnabled="{Binding CanEditOutput}" />
+                                        <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding CanEditOutput}">
                                             <StackPanel Classes="btn">
                                                 <PathIcon Data="{StaticResource IconFolder}" />
                                                 <TextBlock Text="{l:T Common.Browse}" />

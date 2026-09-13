@@ -83,7 +83,6 @@ public sealed partial class ExtractionViewModel : ObservableObject
     private CancellationTokenSource? _previewCancellation;
     private List<PackageEntryItem> _allItems = new();
     private string? _loadedPath;
-    private string? _suggestedOutput;
     private string? _decryptedTempHint;
     private bool _bulkSelecting;
     private bool _recountQueued;
@@ -119,13 +118,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
 
         _packagePath = settings.ExtractPackagePath ?? string.Empty;
         _outputFolder = settings.ExtractOutputFolder ?? string.Empty;
-        // Thư mục xuất khôi phục từ phiên trước mà chính là gợi ý "<gói>-extract" của gói cũ thì vẫn coi là gợi ý tự động,
-        // để khi mở gói khác nó được thay bằng gợi ý mới (không dính thư mục của gói trước).
-        if (!string.IsNullOrWhiteSpace(settings.ExtractPackagePath) && _outputFolder.Length > 0 &&
-            string.Equals(_outputFolder.Trim(), DefaultOutputFor(settings.ExtractPackagePath), StringComparison.OrdinalIgnoreCase))
-        {
-            _suggestedOutput = _outputFolder.Trim();
-        }
+        _autoOutputFolder = settings.ExtractOutputAuto;
         Loc.Current.LanguageChanged += (_, _) => OnLanguageChanged();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Shutdown();
         ShowEmpty();
@@ -248,6 +241,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(CanEditOutput));
         OnPropertyChanged(nameof(CanComputeSha));
         ComputeSha256Command.NotifyCanExecuteChanged();
         ExtractCommand.NotifyCanExecuteChanged();
@@ -612,18 +606,33 @@ public sealed partial class ExtractionViewModel : ObservableObject
         }
     }
 
+    /// <summary>Thư mục xuất luôn tự đặt theo gói ("&lt;gói&gt;-extract" cạnh tệp .pkg); mặc định bật.</summary>
+    [ObservableProperty] private bool _autoOutputFolder = true;
+
+    /// <summary>Ô thư mục xuất chỉ sửa tay được khi tắt "Tự đặt theo gói" (và không bận).</summary>
+    public bool CanEditOutput => CanEdit && !AutoOutputFolder;
+
+    partial void OnAutoOutputFolderChanged(bool value)
+    {
+        _settings.ExtractOutputAuto = value;
+        OnPropertyChanged(nameof(CanEditOutput));
+        if (value)
+        {
+            SuggestOutputFolder(_loadedPath ?? PackagePath.Trim());
+        }
+    }
+
+    /// <summary>Khi "Tự đặt theo gói" đang bật, thư mục xuất luôn là "&lt;gói&gt;-extract" cạnh tệp .pkg hiện tại.</summary>
     private void SuggestOutputFolder(string packagePath)
     {
-        var suggestion = DefaultOutputFor(packagePath);
-        if (suggestion.Length == 0)
+        if (!AutoOutputFolder)
         {
             return;
         }
 
-        var current = OutputFolder.Trim();
-        if (current.Length == 0 || string.Equals(current, _suggestedOutput, StringComparison.OrdinalIgnoreCase))
+        var suggestion = DefaultOutputFor(packagePath);
+        if (suggestion.Length > 0)
         {
-            _suggestedOutput = suggestion;
             OutputFolder = suggestion;
         }
     }
@@ -1212,8 +1221,9 @@ public sealed partial class ExtractionViewModel : ObservableObject
         var folder = await _dialogs.PickFolderAsync(Loc.T("Extract.PickOutput"), initial);
         if (folder != null)
         {
+            // Người dùng tự chọn thư mục → tắt "Tự đặt theo gói" để không bị ghi đè khi mở gói khác.
+            AutoOutputFolder = false;
             OutputFolder = folder;
-            _suggestedOutput = null;
         }
     }
 

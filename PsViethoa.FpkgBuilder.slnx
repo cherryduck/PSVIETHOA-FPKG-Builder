@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PsViethoa.FpkgBuilder.App/PsViethoa.FpkgBuilder.App.csproj" />
+    <Project Path="src/PsViethoa.FpkgBuilder.Cli/PsViethoa.FpkgBuilder.Cli.csproj" />
+    <Project Path="src/PsViethoa.FpkgBuilder.Core/PsViethoa.FpkgBuilder.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PsViethoa.FpkgBuilder.Tests/PsViethoa.FpkgBuilder.Tests.csproj" />
+  </Folder>
+</Solution>

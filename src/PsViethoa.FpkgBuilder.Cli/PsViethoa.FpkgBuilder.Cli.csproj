@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PsViethoa.FpkgBuilder.Cli</RootNamespace>
+    <AssemblyName>fpkg-cli</AssemblyName>
+    <Description>Công cụ dòng lệnh tạo gói FPKG PS5 (macOS/Windows/Linux).</Description>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../PsViethoa.FpkgBuilder.Core/PsViethoa.FpkgBuilder.Core.csproj" />
+  </ItemGroup>
+
+  <!-- libScePubTools.dll (Oodle gốc) chỉ có ý nghĩa trên Windows x64 -->
+  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win')) Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')))">
+    <None Include="$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll" Link="libScePubTools.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

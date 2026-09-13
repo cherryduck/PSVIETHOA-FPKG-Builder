@@ -1,0 +1,148 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Design tokens — sinh từ design-system/ps5-fpkg-builder/MASTER.md
+        (Developer Tool / IDE · Dark OLED · accent xanh lá "run green").
+        Dùng DynamicResource để đổi theme lúc chạy.
+    -->
+
+    <FontFamily x:Key="UiFont">fonts:Inter#Inter, $Default</FontFamily>
+    <FontFamily x:Key="MonoFont">avares://PsViethoa.FpkgBuilder.App/Assets/Fonts#JetBrains Mono, Menlo, Consolas, monospace</FontFamily>
+
+    <x:Double x:Key="FontSizeXs">11</x:Double>
+    <x:Double x:Key="FontSizeSm">12.5</x:Double>
+    <x:Double x:Key="FontSizeBase">14</x:Double>
+    <x:Double x:Key="FontSizeMd">15</x:Double>
+    <x:Double x:Key="FontSizeLg">17</x:Double>
+    <x:Double x:Key="FontSizeXl">20</x:Double>
+    <x:Double x:Key="FontSize2Xl">26</x:Double>
+
+    <CornerRadius x:Key="RadiusSm">6</CornerRadius>
+    <CornerRadius x:Key="RadiusMd">8</CornerRadius>
+    <CornerRadius x:Key="RadiusLg">12</CornerRadius>
+    <CornerRadius x:Key="RadiusXl">16</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+
+    <!-- Fluent accent (CheckBox, Slider, ComboBox highlight…) theo màu nhấn của hệ thống thiết kế -->
+    <Color x:Key="SystemAccentColor">#22C55E</Color>
+    <Color x:Key="SystemAccentColorDark1">#16A34A</Color>
+    <Color x:Key="SystemAccentColorDark2">#15803D</Color>
+    <Color x:Key="SystemAccentColorDark3">#166534</Color>
+    <Color x:Key="SystemAccentColorLight1">#4ADE80</Color>
+    <Color x:Key="SystemAccentColorLight2">#86EFAC</Color>
+    <Color x:Key="SystemAccentColorLight3">#BBF7D0</Color>
+
+    <ResourceDictionary.ThemeDictionaries>
+
+        <ResourceDictionary x:Key="Dark">
+            <Color x:Key="BgColor">#0F172A</Color>
+            <Color x:Key="AccentColor">#22C55E</Color>
+
+            <SolidColorBrush x:Key="BgBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="BgElevatedBrush" Color="#131C31" />
+            <SolidColorBrush x:Key="HeaderBrush" Color="#0B1120" />
+            <SolidColorBrush x:Key="CardBrush" Color="#1B2336" />
+            <SolidColorBrush x:Key="CardHoverBrush" Color="#1F2940" />
+            <SolidColorBrush x:Key="MutedBrush" Color="#272F42" />
+            <SolidColorBrush x:Key="MutedHoverBrush" Color="#2F3950" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#334155" />
+            <SolidColorBrush x:Key="BorderStrongBrush" Color="#475569" />
+            <SolidColorBrush x:Key="DividerBrush" Color="#24304A" />
+
+            <SolidColorBrush x:Key="FgBrush" Color="#F8FAFC" />
+            <SolidColorBrush x:Key="FgSecondaryBrush" Color="#CBD5E1" />
+            <SolidColorBrush x:Key="FgMutedBrush" Color="#94A3B8" />
+            <SolidColorBrush x:Key="FgFaintBrush" Color="#64748B" />
+
+            <SolidColorBrush x:Key="AccentBrush" Color="#22C55E" />
+            <SolidColorBrush x:Key="AccentHoverBrush" Color="#4ADE80" />
+            <SolidColorBrush x:Key="AccentPressedBrush" Color="#16A34A" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#1A3A2E" />
+            <SolidColorBrush x:Key="OnAccentBrush" Color="#0F172A" />
+
+            <SolidColorBrush x:Key="InfoBrush" Color="#60A5FA" />
+            <SolidColorBrush x:Key="InfoSoftBrush" Color="#172A4A" />
+            <SolidColorBrush x:Key="SuccessBrush" Color="#4ADE80" />
+            <SolidColorBrush x:Key="SuccessSoftBrush" Color="#14332A" />
+            <SolidColorBrush x:Key="WarningBrush" Color="#FBBF24" />
+            <SolidColorBrush x:Key="WarningSoftBrush" Color="#3A2E12" />
+            <SolidColorBrush x:Key="DangerBrush" Color="#F87171" />
+            <SolidColorBrush x:Key="DangerSoftBrush" Color="#3B1A1F" />
+            <SolidColorBrush x:Key="DangerStrongBrush" Color="#EF4444" />
+
+            <SolidColorBrush x:Key="InputBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="InputHoverBrush" Color="#111B31" />
+            <SolidColorBrush x:Key="InputFocusBrush" Color="#0B1326" />
+            <SolidColorBrush x:Key="InputBorderBrush" Color="#334155" />
+            <SolidColorBrush x:Key="InputBorderHoverBrush" Color="#475569" />
+
+            <SolidColorBrush x:Key="LogBgBrush" Color="#070B14" />
+            <SolidColorBrush x:Key="LogFgBrush" Color="#CBD5E1" />
+            <SolidColorBrush x:Key="LogTimeBrush" Color="#64748B" />
+            <SolidColorBrush x:Key="LogWarningBrush" Color="#FBBF24" />
+            <SolidColorBrush x:Key="LogErrorBrush" Color="#F87171" />
+            <SolidColorBrush x:Key="LogSuccessBrush" Color="#4ADE80" />
+
+            <SolidColorBrush x:Key="ScrimBrush" Color="#B30F172A" />
+            <BoxShadows x:Key="CardShadow">0 4 12 0 #33000000</BoxShadows>
+            <BoxShadows x:Key="AccentGlow">0 0 18 0 #4022C55E</BoxShadows>
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Light">
+            <Color x:Key="BgColor">#F1F5F9</Color>
+            <Color x:Key="AccentColor">#16A34A</Color>
+
+            <SolidColorBrush x:Key="BgBrush" Color="#F1F5F9" />
+            <SolidColorBrush x:Key="BgElevatedBrush" Color="#E9EEF5" />
+            <SolidColorBrush x:Key="HeaderBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="CardHoverBrush" Color="#F8FAFC" />
+            <SolidColorBrush x:Key="MutedBrush" Color="#E2E8F0" />
+            <SolidColorBrush x:Key="MutedHoverBrush" Color="#D6DEE8" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#D9E0EA" />
+            <SolidColorBrush x:Key="BorderStrongBrush" Color="#B8C3D3" />
+            <SolidColorBrush x:Key="DividerBrush" Color="#E5EAF1" />
+
+            <SolidColorBrush x:Key="FgBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="FgSecondaryBrush" Color="#334155" />
+            <SolidColorBrush x:Key="FgMutedBrush" Color="#64748B" />
+            <SolidColorBrush x:Key="FgFaintBrush" Color="#94A3B8" />
+
+            <SolidColorBrush x:Key="AccentBrush" Color="#16A34A" />
+            <SolidColorBrush x:Key="AccentHoverBrush" Color="#15803D" />
+            <SolidColorBrush x:Key="AccentPressedBrush" Color="#166534" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#DCFCE7" />
+            <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
+
+            <SolidColorBrush x:Key="InfoBrush" Color="#2563EB" />
+            <SolidColorBrush x:Key="InfoSoftBrush" Color="#DBEAFE" />
+            <SolidColorBrush x:Key="SuccessBrush" Color="#15803D" />
+            <SolidColorBrush x:Key="SuccessSoftBrush" Color="#DCFCE7" />
+            <SolidColorBrush x:Key="WarningBrush" Color="#B45309" />
+            <SolidColorBrush x:Key="WarningSoftBrush" Color="#FEF3C7" />
+            <SolidColorBrush x:Key="DangerBrush" Color="#DC2626" />
+            <SolidColorBrush x:Key="DangerSoftBrush" Color="#FEE2E2" />
+            <SolidColorBrush x:Key="DangerStrongBrush" Color="#DC2626" />
+
+            <SolidColorBrush x:Key="InputBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="InputHoverBrush" Color="#FAFCFF" />
+            <SolidColorBrush x:Key="InputFocusBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="InputBorderBrush" Color="#CBD5E1" />
+            <SolidColorBrush x:Key="InputBorderHoverBrush" Color="#94A3B8" />
+
+            <SolidColorBrush x:Key="LogBgBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="LogFgBrush" Color="#CBD5E1" />
+            <SolidColorBrush x:Key="LogTimeBrush" Color="#64748B" />
+            <SolidColorBrush x:Key="LogWarningBrush" Color="#FBBF24" />
+            <SolidColorBrush x:Key="LogErrorBrush" Color="#F87171" />
+            <SolidColorBrush x:Key="LogSuccessBrush" Color="#4ADE80" />
+
+            <SolidColorBrush x:Key="ScrimBrush" Color="#B3F1F5F9" />
+            <BoxShadows x:Key="CardShadow">0 2 8 0 #14000000</BoxShadows>
+            <BoxShadows x:Key="AccentGlow">0 0 18 0 #3316A34A</BoxShadows>
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+</ResourceDictionary>

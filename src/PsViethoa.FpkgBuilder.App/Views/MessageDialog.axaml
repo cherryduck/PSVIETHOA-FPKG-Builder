@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PsViethoa.FpkgBuilder.App.Views.MessageDialog"
+        Width="480" SizeToContent="Height" MinHeight="160"
+        CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="Full"
+        Title="Thông báo">
+
+    <Border Padding="24,22,24,18">
+        <StackPanel Spacing="16">
+            <Grid ColumnDefinitions="Auto,*">
+                <Border Name="IconBadge" Width="40" Height="40" CornerRadius="12" Margin="0,0,14,0" VerticalAlignment="Top">
+                    <PathIcon Name="KindIcon" Width="20" Height="20" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Name="TitleText" Classes="h2" TextWrapping="Wrap" />
+                    <SelectableTextBlock Name="MessageText" Classes="secondary" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Name="CancelButton" MinWidth="110" Click="Cancel_Click" />
+                <Button Name="ConfirmButton" MinWidth="110" Click="Confirm_Click" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

@@ -1,0 +1,19 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RollForward>LatestMajor</RollForward>
+    <Version>2.0.0</Version>
+    <Authors>PSVIETHOA — Nguyễn Thanh Sơn &amp; Ngô Phi Phương</Authors>
+    <Company>PSVIETHOA</Company>
+    <Product>PSVIETHOA FPKG Builder</Product>
+    <Copyright>© 2026 PSVIETHOA — Nguyễn Thanh Sơn &amp; Ngô Phi Phương · Main project: Drakmor (LibProsperoPkg)</Copyright>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <AvaloniaVersion>11.3.22</AvaloniaVersion>
+    <TieredPGO>true</TieredPGO>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+</Project>

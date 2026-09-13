@@ -1,0 +1,11 @@
+bin/
+obj/
+dist/
+*.user
+*.suo
+.vs/
+.idea/
+.DS_Store
+*.swp
+publish/
+TestResults/

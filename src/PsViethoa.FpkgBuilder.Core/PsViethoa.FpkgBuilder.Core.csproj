@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>PsViethoa.FpkgBuilder.Core</RootNamespace>
+    <AssemblyName>PsViethoa.FpkgBuilder.Core</AssemblyName>
+    <Description>Lõi tạo gói FPKG PS5 đa nền tảng (macOS/Windows) trên nền LibProsperoPkg.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Thư viện lõi PS5 PKG (managed .NET, chạy được trên macOS/Windows/Linux) -->
+    <Reference Include="LibProsperoPkg">
+      <HintPath>$(MSBuildThisFileDirectory)../../libs/LibProsperoPkg.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bảng chuỗi đa ngôn ngữ (vi/en) -->
+    <EmbeddedResource Include="Localization/*.json" LogicalName="PsViethoa.FpkgBuilder.Core.Localization.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Phụ thuộc của LibProsperoPkg (icon PNG -> DDS BC7) -->
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.15.0" />
+    <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
+    <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
+  </ItemGroup>
+
+</Project>

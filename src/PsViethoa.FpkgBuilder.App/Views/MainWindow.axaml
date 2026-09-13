@@ -1,0 +1,648 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+        xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
+        xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
+        xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+        x:Class="PsViethoa.FpkgBuilder.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="PSVIETHOA FPKG Builder"
+        Icon="avares://PsViethoa.FpkgBuilder.App/Assets/icon-256.png"
+        Width="1320" Height="880" MinWidth="1080" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="F5" Command="{Binding BuildCommand}" />
+        <KeyBinding Gesture="Ctrl+B" Command="{Binding BuildCommand}" />
+        <KeyBinding Gesture="Cmd+B" Command="{Binding BuildCommand}" />
+        <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+        <KeyBinding Gesture="Ctrl+L" Command="{Binding CopyLogCommand}" />
+        <KeyBinding Gesture="Cmd+L" Command="{Binding CopyLogCommand}" />
+    </Window.KeyBindings>
+
+    <Window.Styles>
+        <Style Selector="Ellipse.dot">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="Fill" Value="{DynamicResource FgFaintBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.working">
+            <Setter Property="Fill" Value="{DynamicResource InfoBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.success">
+            <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.error">
+            <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.canceled">
+            <Setter Property="Fill" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="StackPanel.field">
+            <Setter Property="Spacing" Value="0" />
+        </Style>
+        <Style Selector="TextBlock.metatitle">
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="TextBlock.metatitle.warning">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="TextBlock.diskinfo">
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.diskinfo.warning">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="PathIcon.diskicon">
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="PathIcon.diskicon.warning">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <!-- Công tắc ngôn ngữ nhỏ gọn ở header -->
+        <Style Selector="RadioButton.lang">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="#CBD5E1" />
+        </Style>
+        <Style Selector="RadioButton.lang:checked">
+            <Setter Property="Foreground" Value="#F8FAFC" />
+        </Style>
+    </Window.Styles>
+
+    <Panel>
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- ============ HEADER ============ -->
+            <Border Grid.Row="0" Background="{DynamicResource HeaderBrush}" Padding="22,12">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                        <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/icon-128.png" Width="40" Height="40" />
+                        <StackPanel Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Text="PSVIETHOA FPKG Builder" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" LineHeight="24" />
+                            <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
+                                <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
+                                <TextBlock Text="{l:T App.HeaderCredits}" FontSize="12" FontWeight="Medium" Foreground="#CBD5E1" LineHeight="16" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Border Classes="chip success" IsVisible="{Binding KeysAvailable}" ToolTip.Tip="{l:T Header.KeysReadyTip}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Classes="sm success" Data="{StaticResource IconKey}" />
+                                <TextBlock Text="{l:T Header.KeysReady}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="chip danger" IsVisible="{Binding !KeysAvailable}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Classes="sm danger" Data="{StaticResource IconAlert}" />
+                                <TextBlock Text="{l:T Header.KeysMissing}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="8" Padding="3" ToolTip.Tip="{l:T Header.LanguageTip}">
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="VI" IsChecked="{Binding LanguageVi, Mode=TwoWay}" />
+                                <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="EN" IsChecked="{Binding LanguageEn, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Border>
+                        <Button Classes="header icon" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="{Binding ThemeTooltip}">
+                            <Panel>
+                                <PathIcon Data="{StaticResource IconSun}" IsVisible="{Binding IsDarkTheme}" />
+                                <PathIcon Data="{StaticResource IconMoon}" IsVisible="{Binding !IsDarkTheme}" />
+                            </Panel>
+                        </Button>
+                        <Button Classes="header" Name="HelpButton" Click="Help_Click" ToolTip.Tip="{l:T Header.HelpTip}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconHelp}" />
+                                <TextBlock Text="{l:T Header.Help}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ============ BODY ============ -->
+            <Grid Grid.Row="1" ColumnDefinitions="580,18,*" Margin="22,18,22,12">
+
+                <!-- ~~~ CỘT TRÁI: CẤU HÌNH ~~~ -->
+                <ScrollViewer Grid.Column="0" Name="SettingsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding CanEdit}">
+                    <StackPanel Spacing="14" Margin="0,0,10,0">
+
+                        <!-- BƯỚC 1 -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                                        <TextBlock Text="1" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Classes="h2" Text="{l:T Step1.Title}" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel Classes="field">
+                                    <TextBlock Classes="label" Text="{l:T Step1.SourceLabel}" />
+                                    <Grid ColumnDefinitions="*,8,Auto,6,Auto">
+                                        <TextBox Name="SourceBox" Text="{Binding SourcePath, Mode=TwoWay}" Classes.error="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}"
+                                                 Watermark="{l:T Step1.SourceWatermark}" />
+                                        <Button Grid.Column="2" Command="{Binding BrowseSourceCommand}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                                <TextBlock Text="{l:T Common.Browse}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="4" Command="{Binding BrowseExFatCommand}" ToolTip.Tip="{l:T Step1.PickExFatTip}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconDisk}" />
+                                                <TextBlock Text="{l:T Step1.PickExFat}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                    <TextBlock Classes="error" Text="{Binding SourceError}" IsVisible="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    <ItemsControl ItemsSource="{Binding RecentSources}" IsVisible="{Binding HasRecent}" Margin="0,6,0,0">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <Button Classes="link" Margin="0,0,4,4" ToolTip.Tip="{Binding}"
+                                                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectRecentCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <PathIcon Classes="sm" Data="{StaticResource IconClock}" Opacity="0.7" />
+                                                        <TextBlock Text="{Binding Converter={x:Static conv:AppConverters.FolderName}}" FontSize="12.5" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <!-- Metadata -->
+                                <Border Classes="surface" Padding="14">
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <Border Width="64" Height="64" CornerRadius="14" Background="{DynamicResource MutedBrush}" ClipToBounds="True" Margin="0,0,14,0" VerticalAlignment="Top">
+                                                <Panel>
+                                                    <PathIcon Classes="lg muted" Data="{StaticResource IconPackage}" IsVisible="{Binding !HasIcon}" Width="26" Height="26" />
+                                                    <Image Source="{Binding IconImage}" IsVisible="{Binding HasIcon}" Stretch="UniformToFill" />
+                                                </Panel>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                                <TextBlock Classes="h3 metatitle" Classes.warning="{Binding MetadataWarning}" Text="{Binding MetaTitle}" TextWrapping="Wrap" />
+                                                <SelectableTextBlock Classes="mono small muted" Text="{Binding MetaSubtitle}" TextWrapping="Wrap" />
+                                                <WrapPanel IsVisible="{Binding HasSource}" Margin="0,2,0,0">
+                                                    <Border Classes="chip accent" Margin="0,0,6,4" IsVisible="{Binding IsExFatSource}"><TextBlock Text="{Binding MetaExFatChip}" /></Border>
+                                                    <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding HasParamJson}"><TextBlock Text="{Binding MetaVersion}" /></Border>
+                                                    <Border Classes="chip" Margin="0,0,6,4" IsVisible="{Binding HasParamJson}"><TextBlock Text="{Binding MetaSdk}" /></Border>
+                                                    <Border Classes="chip info" Margin="0,0,6,4" IsVisible="{Binding MetaFiles, Converter={x:Static conv:AppConverters.NotEmpty}}"><TextBlock Text="{Binding MetaFiles}" /></Border>
+                                                    <Border Classes="chip success" Margin="0,0,6,4" IsVisible="{Binding HasEboot}"><TextBlock Text="eboot.bin" /></Border>
+                                                </WrapPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                        <ProgressBar Classes="thin" IsIndeterminate="True" IsVisible="{Binding IsScanning}" />
+                                        <TextBlock Classes="hint" Margin="0" Text="{Binding MetaExFatRoot}" IsVisible="{Binding IsExFatSource}" />
+                                        <TextBlock Classes="hint" Margin="0" Text="{Binding PlayGoText}" IsVisible="{Binding HasSource}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Tệp rác -->
+                                <Border Classes="banner warning" IsVisible="{Binding HasJunk}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <PathIcon Classes="warning" Data="{StaticResource IconAlert}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                        <TextBlock Grid.Column="1" Classes="small" Text="{Binding JunkSummary}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <Button Grid.Column="2" Classes="ghost" Margin="10,0,0,0" Command="{Binding CleanJunkCommand}" VerticalAlignment="Center" IsVisible="{Binding !JunkReadOnly}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconBroom}" />
+                                                <TextBlock Text="{l:T Step1.CleanNow}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <StackPanel Classes="field">
+                                    <TextBlock Classes="label" Text="{l:T Step1.OutputLabel}" />
+                                    <Grid ColumnDefinitions="*,8,Auto">
+                                        <TextBox Name="OutputBox" Text="{Binding OutputFolder, Mode=TwoWay}" Classes.error="{Binding OutputError, Converter={x:Static conv:AppConverters.NotEmpty}}"
+                                                 Watermark="{l:T Step1.OutputWatermark}" />
+                                        <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}">
+                                            <StackPanel Classes="btn">
+                                                <PathIcon Data="{StaticResource IconFolder}" />
+                                                <TextBlock Text="{l:T Common.Browse}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                    <TextBlock Classes="error" Text="{Binding OutputError}" IsVisible="{Binding OutputError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding HasDiskInfo}">
+                                        <PathIcon Classes="sm diskicon" Classes.warning="{Binding DiskWarning}" Data="{StaticResource IconDisk}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                        <TextBlock Classes="small diskinfo" Classes.warning="{Binding DiskWarning}" Text="{Binding DiskSummary}" TextWrapping="Wrap" MaxWidth="480" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- BƯỚC 2 -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                                        <TextBlock Text="2" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Classes="h2" Text="{l:T Step2.Title}" VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel Classes="field">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Classes="label" Text="{l:T Step2.ContentId}" />
+                                        <Button Grid.Column="1" Classes="link" Command="{Binding UseSuggestedContentIdCommand}" IsVisible="{Binding !HasParamJson}" Margin="0,-6,0,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" />
+                                                <TextBlock Text="{l:T Step2.Suggest}" FontSize="12.5" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                    <TextBox Name="ContentIdBox" Classes="mono" Text="{Binding ContentId, Mode=TwoWay}" Classes.error="{Binding ContentIdError, Converter={x:Static conv:AppConverters.NotEmpty}}"
+                                             Watermark="UP0000-PPSA00000_00-XXXXXXXXXXXXXXXX" MaxLength="36" />
+                                    <TextBlock Classes="hint" Text="{l:T Step2.ContentIdHint}" IsVisible="{Binding ContentIdError, Converter={x:Static conv:AppConverters.Empty}}" />
+                                    <TextBlock Classes="error" Text="{Binding ContentIdError}" IsVisible="{Binding ContentIdError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,14,220">
+                                    <StackPanel Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Step2.TitleLabel}" />
+                                        <TextBox Name="TitleBox" Text="{Binding Title, Mode=TwoWay}" Watermark="{l:T Step2.TitleWatermark}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Step2.VersionLabel}" />
+                                        <TextBox Name="VersionBox" Classes="mono" Text="{Binding Version, Mode=TwoWay}" Classes.error="{Binding VersionError, Converter={x:Static conv:AppConverters.NotEmpty}}" Watermark="01.000.000" />
+                                        <TextBlock Classes="error" Text="{Binding VersionError}" IsVisible="{Binding VersionError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,14,*">
+                                    <StackPanel Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Step2.KindLabel}" />
+                                        <ComboBox ItemsSource="{Binding KindOptions}" SelectedIndex="{Binding KindIndex, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Step2.ImageModeLabel}" />
+                                        <ComboBox ItemsSource="{Binding ImageModeOptions}" SelectedIndex="{Binding ImageModeIndex, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Classes="hint" Margin="0" Text="{Binding ImageModeHint}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- BƯỚC 3 -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Width="26" Height="26" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                                        <TextBlock Text="3" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Classes="h2" Text="{l:T Step3.Title}" VerticalAlignment="Center" />
+                                    <Border Classes="chip accent" IsVisible="{Binding PresetCustom}">
+                                        <TextBlock Text="{l:T Step3.Custom}" />
+                                    </Border>
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,8,*,8,*">
+                                    <RadioButton Grid.Column="0" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetFast, Mode=TwoWay}">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconBolt}" />
+                                                <TextBlock Text="{l:T Preset.fast.Name}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.fast.Short}" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton Grid.Column="2" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetBalanced, Mode=TwoWay}">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconTune}" />
+                                                <TextBlock Text="{l:T Preset.balanced.Name}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.balanced.Short}" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton Grid.Column="4" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetSmallest, Mode=TwoWay}">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconZip}" />
+                                                <TextBlock Text="{l:T Preset.smallest.Name}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <TextBlock Classes="xs muted" Text="{l:T Preset.smallest.Short}" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                </Grid>
+                                <TextBlock Classes="hint" Margin="0" Text="{Binding PresetSummary}" />
+
+                                <ToggleButton Theme="{StaticResource DisclosureToggle}" IsChecked="{Binding AdvancedExpanded, Mode=TwoWay}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <PathIcon Data="{StaticResource IconSettings}" Margin="0,0,10,0" />
+                                        <StackPanel Grid.Column="1" Spacing="1">
+                                            <TextBlock Text="{l:T Advanced.Title}" FontWeight="SemiBold" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Advanced.Subtitle}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Panel Grid.Column="2">
+                                            <PathIcon Classes="muted" Data="{StaticResource IconChevronDown}" IsVisible="{Binding AdvancedExpanded}" />
+                                            <PathIcon Classes="muted" Data="{StaticResource IconChevronRight}" IsVisible="{Binding !AdvancedExpanded}" />
+                                        </Panel>
+                                    </Grid>
+                                </ToggleButton>
+
+                                <StackPanel Spacing="14" IsVisible="{Binding AdvancedExpanded}" Margin="0,2,0,0">
+                                    <Border Classes="divider" Margin="0" />
+
+                                    <StackPanel Classes="field" IsVisible="{Binding IsExFatSource}">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.ExFat}" />
+                                        <ComboBox Name="ExFatCombo" ItemsSource="{Binding ExFatOptions}" SelectedIndex="{Binding ExFatIndex, Mode=TwoWay}" />
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.ExFatHint}" />
+                                        <TextBlock Classes="error" Text="{Binding ExFatError}" IsVisible="{Binding ExFatError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    </StackPanel>
+
+                                    <StackPanel Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.Backend}" />
+                                        <ComboBox Name="BackendCombo" ItemsSource="{Binding BackendOptions}" SelectedIndex="{Binding BackendIndex, Mode=TwoWay}" />
+                                        <TextBlock Classes="hint" Text="{Binding BackendHint}" />
+                                    </StackPanel>
+
+                                    <StackPanel Classes="field" IsVisible="{Binding UsesPublishingTools}">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.Dll}" />
+                                        <Grid ColumnDefinitions="*,8,Auto">
+                                            <TextBox Name="DllBox" Classes="mono" Text="{Binding PublishingToolsPath, Mode=TwoWay}" Classes.error="{Binding PublishingToolsError, Converter={x:Static conv:AppConverters.NotEmpty}}"
+                                                     Watermark="{l:T Advanced.DllWatermark}" IsEnabled="{Binding IsWindows}" />
+                                            <Button Grid.Column="2" Content="{l:T Common.Browse}" Command="{Binding BrowsePublishingToolsCommand}" IsEnabled="{Binding IsWindows}" />
+                                        </Grid>
+                                        <TextBlock Classes="error" Text="{Binding PublishingToolsError}" IsVisible="{Binding PublishingToolsError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    </StackPanel>
+
+                                    <StackPanel Classes="field" IsEnabled="{Binding CompressionEnabled}">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.Level}" />
+                                            <TextBlock Grid.Column="1" Classes="small secondary" Text="{Binding KrakenLevelText}" />
+                                        </Grid>
+                                        <Slider Minimum="-4" Maximum="9" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding KrakenLevel, Mode=TwoWay}" />
+                                        <Grid ColumnDefinitions="*,*">
+                                            <TextBlock Classes="xs faint" Text="{l:T Advanced.LevelMin}" />
+                                            <TextBlock Grid.Column="1" Classes="xs faint" Text="{l:T Advanced.LevelMax}" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Grid ColumnDefinitions="*,14,*">
+                                        <StackPanel Classes="field" IsEnabled="{Binding CompressionEnabled}">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.Threads}" />
+                                            <NumericUpDown Name="ThreadsBox" Minimum="0" Maximum="256" Increment="1" FormatString="0" Value="{Binding Threads, Mode=TwoWay}" />
+                                            <TextBlock Classes="hint" Text="{Binding ThreadsHint}" />
+                                            <TextBlock Classes="error" Text="{Binding ThreadsError}" IsVisible="{Binding ThreadsError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Classes="field">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.PlayGo}" />
+                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="64" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" />
+                                            <TextBlock Classes="hint" Text="{l:T Advanced.PlayGoHint}" />
+                                            <TextBlock Classes="error" Text="{Binding PlayGoError}" IsVisible="{Binding PlayGoError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.Sdk}" />
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <ToggleSwitch IsChecked="{Binding OverrideSdk, Mode=TwoWay}" />
+                                                <TextBlock Text="{l:T Advanced.Override}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <ComboBox Grid.Column="2" Name="SdkCombo" ItemsSource="{Binding SdkOptions}" SelectedIndex="{Binding SdkIndex, Mode=TwoWay}" IsEnabled="{Binding OverrideSdk}" />
+                                        </Grid>
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.SdkHint}" />
+                                        <TextBlock Classes="error" Text="{Binding SdkError}" IsVisible="{Binding SdkError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    </StackPanel>
+
+                                    <StackPanel Classes="field">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.Passcode}" />
+                                        <Grid ColumnDefinitions="*,8,Auto">
+                                            <TextBox Name="PasscodeBox" Classes="mono" PasswordChar="•" RevealPassword="{Binding ShowPasscode}" Text="{Binding Passcode, Mode=TwoWay}" MaxLength="32"
+                                                     Classes.error="{Binding PasscodeError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                            <ToggleButton Grid.Column="2" Width="40" Height="40" Padding="0" IsChecked="{Binding ShowPasscode, Mode=TwoWay}" ToolTip.Tip="{l:T Advanced.PasscodeToggle}">
+                                                <Panel>
+                                                    <PathIcon Data="{StaticResource IconEye}" IsVisible="{Binding !ShowPasscode}" />
+                                                    <PathIcon Data="{StaticResource IconEyeOff}" IsVisible="{Binding ShowPasscode}" />
+                                                </Panel>
+                                            </ToggleButton>
+                                        </Grid>
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.PasscodeHint}" />
+                                        <TextBlock Classes="error" Text="{Binding PasscodeError}" IsVisible="{Binding PasscodeError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding Deterministic, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.Deterministic}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.DeterministicHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding ComputeSha256, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.Sha256}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.Sha256Hint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding PreventSleep, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.Sleep}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.SleepHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <StackPanel Classes="field">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.Temp}" />
+                                            <Button Grid.Column="1" Classes="link" Command="{Binding ResetTemporaryCommand}" Margin="0,-6,0,0">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <PathIcon Classes="sm" Data="{StaticResource IconRefresh}" />
+                                                    <TextBlock Text="{l:T Advanced.TempReset}" FontSize="12.5" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,8,Auto">
+                                            <TextBox Name="TempBox" Text="{Binding TemporaryFolder, Mode=TwoWay}" Classes.error="{Binding TemporaryError, Converter={x:Static conv:AppConverters.NotEmpty}}" Watermark="{l:T Advanced.TempWatermark}" />
+                                            <Button Grid.Column="2" Content="{l:T Common.Browse}" Command="{Binding BrowseTemporaryCommand}" />
+                                        </Grid>
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.TempHint}" />
+                                        <TextBlock Classes="error" Text="{Binding TemporaryError}" IsVisible="{Binding TemporaryError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ~~~ CỘT PHẢI: TẠO GÓI ~~~ -->
+                <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
+
+                    <!-- Bảng điều khiển -->
+                    <Border Grid.Row="0" Classes="card" Padding="20,18">
+                        <StackPanel Spacing="12">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Ellipse Classes="dot" Classes.working="{Binding IsStatusWorking}" Classes.success="{Binding IsStatusSuccess}" Classes.error="{Binding IsStatusError}" Classes.canceled="{Binding IsStatusCanceled}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="h2" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding ElapsedText, Converter={x:Static conv:AppConverters.NotEmpty}}">
+                                    <PathIcon Classes="sm muted" Data="{StaticResource IconClock}" />
+                                    <TextBlock Classes="mono secondary" Text="{Binding ElapsedText}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding OverallPercent}" />
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="small secondary" Text="{Binding PhaseText}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Classes="xs muted" Text="{Binding EtaText}" IsVisible="{Binding EtaText, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Classes="mono" FontSize="26" FontWeight="SemiBold" LineHeight="30" Text="{Binding PercentText}" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <Border Classes="banner danger" IsVisible="{Binding HasErrorBanner}">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <PathIcon Classes="danger" Data="{StaticResource IconAlertCircle}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                    <SelectableTextBlock Grid.Column="1" Classes="small" Text="{Binding ErrorBanner}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Classes="icon" Width="28" Height="28" Command="{Binding DismissErrorCommand}" VerticalAlignment="Top" ToolTip.Tip="{l:T Common.Close}">
+                                        <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                            <Border Classes="banner warning" IsVisible="{Binding HasNoticeBanner}">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <PathIcon Classes="warning" Data="{StaticResource IconAlert}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                    <TextBlock Grid.Column="1" Classes="small" Text="{Binding NoticeBanner}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Classes="icon" Width="28" Height="28" Command="{Binding DismissNoticeCommand}" VerticalAlignment="Top" ToolTip.Tip="{l:T Common.Close}">
+                                        <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <Grid ColumnDefinitions="*,10,Auto">
+                                <Button Name="BuildButton" Classes="primary" Command="{Binding BuildCommand}" IsVisible="{Binding !IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="{l:T Build.ButtonTip}">
+                                    <StackPanel Classes="btn" HorizontalAlignment="Center">
+                                        <PathIcon Classes="lg" Data="{StaticResource IconPlay}" />
+                                        <TextBlock Text="{l:T Build.Button}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Name="CancelButton" Classes="danger" MinHeight="46" Command="{Binding CancelCommand}" IsVisible="{Binding IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="Esc">
+                                    <StackPanel Classes="btn" HorizontalAlignment="Center">
+                                        <PathIcon Classes="lg" Data="{StaticResource IconStop}" />
+                                        <TextBlock Text="{l:T Build.Cancel}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" MinHeight="46" Command="{Binding OpenOutputCommand}" ToolTip.Tip="{l:T Build.OpenOutputTip}">
+                                    <StackPanel Classes="btn">
+                                        <PathIcon Data="{StaticResource IconOpenExternal}" />
+                                        <TextBlock Text="{l:T Build.OpenOutput}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Kết quả -->
+                    <Border Grid.Row="1" Classes="card" Margin="0,14,0,0" Padding="20,16" IsVisible="{Binding HasResult}" BorderBrush="{DynamicResource SuccessBrush}">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <PathIcon Classes="lg success" Data="{StaticResource IconCheckCircle}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="h2" Text="{l:T Result.Title}" VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Classes="ghost" Command="{Binding CopyResultCommand}">
+                                    <StackPanel Classes="btn">
+                                        <PathIcon Data="{StaticResource IconCopy}" />
+                                        <TextBlock Text="{l:T Result.Copy}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                <TextBlock Grid.Row="0" Classes="kvkey" Text="{l:T Result.File}" />
+                                <SelectableTextBlock Grid.Row="0" Grid.Column="1" Classes="kvval mono" Text="{Binding ResultPath}" />
+                                <TextBlock Grid.Row="1" Classes="kvkey" Text="{l:T Result.Type}" />
+                                <SelectableTextBlock Grid.Row="1" Grid.Column="1" Classes="kvval" Text="{Binding ResultType}" />
+                                <TextBlock Grid.Row="2" Classes="kvkey" Text="{l:T Result.Size}" />
+                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="0">
+                                    <SelectableTextBlock Classes="kvval" Text="{Binding ResultSize}" />
+                                    <TextBlock Classes="xs muted" Text="{Binding ResultRatio}" IsVisible="{Binding ResultRatio, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="3" Classes="kvkey" Text="{l:T Result.ContentId}" />
+                                <SelectableTextBlock Grid.Row="3" Grid.Column="1" Classes="kvval mono" Text="{Binding ResultContentId}" />
+                                <TextBlock Grid.Row="4" Classes="kvkey" Text="{l:T Result.Sha}" />
+                                <SelectableTextBlock Grid.Row="4" Grid.Column="1" Classes="kvval mono" Text="{Binding ResultSha}" />
+                                <TextBlock Grid.Row="5" Classes="kvkey" Text="{l:T Result.Time}" />
+                                <SelectableTextBlock Grid.Row="5" Grid.Column="1" Classes="kvval" Text="{Binding ResultElapsed}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Nhật ký -->
+                    <Border Grid.Row="2" Classes="card" Margin="0,14,0,0" Padding="0" ClipToBounds="True">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="18,12,12,10">
+                                <PathIcon Data="{StaticResource IconTerminal}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="h3" Text="{l:T Log.Title}" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Classes="chip" HorizontalAlignment="Left" Margin="10,0,0,0" IsVisible="{Binding LogCount}">
+                                    <TextBlock Text="{Binding LogCount}" />
+                                </Border>
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
+                                    <CheckBox Content="{l:T Log.AutoScroll}" IsChecked="{Binding AutoScrollLog, Mode=TwoWay}" FontSize="12.5" Margin="0,0,6,0" />
+                                    <Button Classes="icon" Command="{Binding CopyLogCommand}" ToolTip.Tip="{l:T Log.CopyTip}">
+                                        <PathIcon Data="{StaticResource IconCopy}" />
+                                    </Button>
+                                    <Button Classes="icon" Command="{Binding SaveLogCommand}" ToolTip.Tip="{l:T Log.SaveTip}">
+                                        <PathIcon Data="{StaticResource IconSave}" />
+                                    </Button>
+                                    <Button Classes="icon" Command="{Binding ClearLogCommand}" ToolTip.Tip="{l:T Log.ClearTip}">
+                                        <PathIcon Data="{StaticResource IconTrash}" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                            <ListBox Grid.Row="1" Name="LogList" Classes="log" ItemsSource="{Binding LogEntries}" SelectionMode="Multiple">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:LogEntry">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Classes="logtime" Text="{Binding TimeText}" />
+                                            <TextBlock Grid.Column="1" Classes="logmsg" Classes.warn="{Binding IsWarning}" Classes.err="{Binding IsError}" Classes.ok="{Binding IsSuccess}" Text="{Binding Message}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- ============ FOOTER ============ -->
+            <Border Grid.Row="2" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="22,8">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Classes="small muted" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Classes="small faint" Text="{Binding CreditsText}" VerticalAlignment="Center" Margin="0,0,18,0" />
+                    <TextBlock Grid.Column="2" Classes="small faint" Text="{Binding AppVersionText}" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Lớp phủ khi kéo–thả -->
+        <Border Name="DropOverlay" IsVisible="False" Background="{DynamicResource ScrimBrush}" IsHitTestVisible="False">
+            <Border Margin="40" CornerRadius="20" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" BoxShadow="{DynamicResource AccentGlow}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                    <Border Width="72" Height="72" CornerRadius="20" Background="{DynamicResource AccentSoftBrush}" HorizontalAlignment="Center">
+                        <PathIcon Classes="accent" Data="{StaticResource IconDrop}" Width="34" Height="34" />
+                    </Border>
+                    <TextBlock Classes="h1" Text="{l:T Drop.Title}" HorizontalAlignment="Center" />
+                    <TextBlock Classes="muted" Text="{l:T Drop.Hint}" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Panel>
+</Window>

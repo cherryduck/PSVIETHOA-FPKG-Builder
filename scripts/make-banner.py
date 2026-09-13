@@ -61,7 +61,7 @@ def main():
     ctext(262, "PSVIETHOA FPKG Builder", font(58), WHITE)
     ctext(336, "PS5 FPKG (FIH debug) builder for macOS & Windows", font(24, False), SUB)
 
-    pill = "Vietnamese / English  •  Folder or .exfat image  •  Kraken  •  PFS v2 / v3"
+    pill = "Vietnamese / English  •  Folder · .exfat · .ffpfsc · GP5  •  Extract PKG  •  PFS v2 / v3"
     pf = font(18, False)
     pw = d.textbbox((0, 0), pill, font=pf)[2]
     px0 = (W - pw) // 2 - 18

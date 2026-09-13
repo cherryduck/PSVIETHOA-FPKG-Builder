@@ -6,7 +6,7 @@
 
 **Tạo gói FPKG (FIH debug) cho PS5 từ thư mục ứng dụng, ảnh đĩa `.exfat` hoặc dự án GP5 — và giải nén các gói có sẵn — trên macOS và Windows.**
 
-Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v2 / v3 · Dự án GP5 · Giải nén gói · Kiểm tra dung lượng trống & tệp rác · Thời gian còn lại & thông lượng · Tự động kiểm tra gói · CLI
+Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v2 / v3 · Ảnh `.exfat` / `.ffpfsc` · Dự án GP5 · Giải nén gói · Kiểm tra cập nhật · Kiểm tra dung lượng trống & tệp rác · Thời gian còn lại & thông lượng · Tự động kiểm tra gói · CLI
 
 <a href="https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest"><img alt="Download" src="https://img.shields.io/badge/Download-Releases-22C55E?style=for-the-badge&logo=github" /></a>
 
@@ -15,7 +15,8 @@ Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
-![Version](https://img.shields.io/badge/version-2.1.0-F59E0B)
+![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
+![Tests](https://img.shields.io/badge/tests-116%20passing-22C55E)
 
 </div>
 
@@ -129,6 +130,8 @@ Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại
 | **Game thật 21.3 GB** (`PPSA27625`, ảnh .exfat được gắn) | Nhanh (Kraken 2) | 1 phút 59 giây | 8.86 GiB |
 | **Game thật 21.3 GB** | **Tiêu chuẩn (Kraken 4, mặc định)** | **2 phút 13 giây** | **8.86 GiB** |
 | **Game thật 21.3 GB** | Nhỏ nhất (Kraken 7 Optimal) | 12 phút 49 giây | 8.54 GiB |
+| Container `.ffpfsc` 1.2 GB (exFAT 4.29 GB bên trong, 2.9 GB dữ liệu game) | Tiêu chuẩn (Kraken 4) | 31 giây (đọc thông tin 0.15 giây) | 1.14 GiB |
+| Gói 36 GB (`PPSA21567`, 166,707 tệp) — **Giải nén gói** | liệt kê / trích | 3.8 giây / ~200 MB/s | — |
 
 Để so sánh, bản LibProsperoPkg đi kèm 2.0.0 tạo gói cùng game 21.3 GB này trong 3 phút 40 giây, ra gói 9.03 GiB. Đo song song trên cùng bộ dữ liệu 400 MB, engine 2.0.0 cho ra gói **giống hệt nhau** ở mức 4 và mức 7 (254,212,194 byte) — "mức 7" của nó thực chất là bộ nén Normal — còn engine 2.1.0 ở mức 4 tái tạo đúng kết quả đó (254,211,794 byte) với cùng tốc độ. Vì vậy **Tiêu chuẩn** (mặc định) cho bạn kích thước "Kraken 7" cũ với tốc độ cũ, và với game 21 GB còn nhanh hơn và nhỏ hơn trước (2 phút 13 giây, 8.86 GiB). **Nhỏ nhất** là chế độ *Optimal* thực sự mới: giảm thêm 3.5 % (8.54 GiB) đổi lấy thời gian tạo gói lâu gấp 5–6 lần trên dữ liệu game vốn đã được nén sẵn. Mức 4–6 cho ra kết quả giống hệt nhau; từ mức 7 trở lên chuyển sang bộ phân tích (parser) optimal.
 

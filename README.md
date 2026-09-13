@@ -4,9 +4,9 @@
 
 🇻🇳 Tiếng Việt: [docs/README.vi.md](docs/README.vi.md)
 
-**Build PS5 FPKG (FIH debug) packages from an app folder, an `.exfat` disk image or a GP5 project — and extract existing packages — on macOS and Windows.**
+**Build PS5 FPKG (FIH debug) packages from an app folder, an `.exfat` / `.ffpfsc` disk image or a GP5 project — and extract existing packages — on macOS and Windows.**
 
-Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · GP5 projects · Package extraction · Free‑space & junk checks · ETA & throughput · Built‑in verification · CLI
+Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` / `.ffpfsc` images · GP5 projects · Package extraction · Update check · Free‑space & junk checks · ETA & throughput · Built‑in verification · CLI
 
 <a href="https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest"><img alt="Download" src="https://img.shields.io/badge/Download-Releases-22C55E?style=for-the-badge&logo=github" /></a>
 
@@ -15,7 +15,8 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · GP5 proje
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
-![Version](https://img.shields.io/badge/version-2.1.0-F59E0B)
+![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
+![Tests](https://img.shields.io/badge/tests-116%20passing-22C55E)
 
 </div>
 
@@ -35,7 +36,7 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · GP5 proje
 
 ## Why?
 
-Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel) and Windows**, adds a **bilingual interface**, accepts **`.exfat` disk images** as a source, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the September 2026 build shipped with fpkg‑gui 0.6.2), so the packages it produces are byte‑for‑byte correct.
+Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel) and Windows**, adds a **bilingual interface**, accepts **`.exfat` / `.ffpfsc` disk images and GP5 projects** as sources, can **extract existing packages**, checks GitHub for **updates**, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the September 2026 build shipped with fpkg‑gui 0.6.2), so the packages it produces are byte‑for‑byte correct.
 
 > The result is a **debug FPKG** (FIH image, signed byte `0x00`) — it installs only on a **PS5 with debug mode enabled**.
 
@@ -80,8 +81,8 @@ Each archive also contains the `fpkg-cli` command‑line tool.
 
 ## Quick start
 
-1. Prepare an extracted PS5 app folder (with a `sce_sys` folder and `eboot.bin`), **or** point at a `.exfat` disk image.
-2. In **step 1**, click **Browse…** / **.exfat image**, or drop the folder/image onto the window. Content ID, title, version, size, and junk files are detected automatically.
+1. Prepare an extracted PS5 app folder (with a `sce_sys` folder and `eboot.bin`), **or** point at a `.exfat` disk image, a `.ffpfsc` container or a `.gp5` project.
+2. In **step 1**, click **Browse…** / **.exfat image** / **.ffpfsc file** / **.gp5 project**, or drop the folder / file onto the window. Content ID, title, version, size and junk files are detected automatically; the output folder is set for you (toggle "Auto from source" off to choose your own).
 3. Pick a speed preset in **step 3** (Standard is the default and equals the old engine's "Kraken 7"; Smallest = level 7 Optimal, slow) or open the advanced options.
 4. Click **Build PKG** (`Ctrl/⌘+B` or `F5`). Watch the progress, ETA, and log; the structure is verified automatically when it finishes.
 
@@ -129,6 +130,8 @@ Measured on an Apple‑Silicon Mac (15 logical cores), built‑in Kraken, LibPro
 | **21.3 GB real game** (`PPSA27625`, mounted .exfat) | Fast (Kraken 2) | 1 min 59 s | 8.86 GiB |
 | **21.3 GB real game** | **Standard (Kraken 4, default)** | **2 min 13 s** | **8.86 GiB** |
 | **21.3 GB real game** | Smallest (Kraken 7 Optimal) | 12 min 49 s | 8.54 GiB |
+| 1.2 GB `.ffpfsc` container (4.29 GB exFAT inside, 2.9 GB of game data) | Standard (Kraken 4) | 31 s (info 0.15 s) | 1.14 GiB |
+| 36 GB package (`PPSA21567`, 166,707 files) — **Extract PKG** | list / extract | 3.8 s / ~200 MB/s | — |
 
 For comparison, the LibProsperoPkg build shipped with 2.0.0 built the same 21.3 GB game in 3 min 40 s to a 9.03 GiB package. Measured side by side on the same 400 MB set, the 2.0.0 engine produced **identical** packages at levels 4 and 7 (254,212,194 bytes) — its "level 7" was the Normal encoder — and the 2.1.0 engine at level 4 reproduces that result (254,211,794 bytes) at the same speed. So **Standard** (the default) gives you the old "Kraken 7" size at the old speed, and on the 21 GB game it is even faster and smaller than before (2 min 13 s, 8.86 GiB). **Smallest** is a genuinely new *Optimal* mode: another 3.5 % (8.54 GiB) for a 5–6× longer build on already‑compressed game data. Levels 4–6 produce identical output; level 7 and up switch to the optimal parser.
 
@@ -157,7 +160,7 @@ src/
   PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
   PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
   PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (68 tests)
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (116 tests)
 scripts/                              # publish + dev scripts
 ```
 </details>

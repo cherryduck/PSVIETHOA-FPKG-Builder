@@ -59,6 +59,9 @@ public sealed class SourceMetadata
 
     public int? CategoryType { get; set; }
 
+    /// <summary>applicationDrmType trong param.json ("standard", "free"…; null nếu thiếu).</summary>
+    public string? ApplicationDrmType { get; set; }
+
     public string? IconPath { get; set; }
 
     public bool HasEboot { get; set; }

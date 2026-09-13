@@ -528,6 +528,14 @@
                                         </StackPanel>
                                     </Grid>
 
+                                    <Grid ColumnDefinitions="Auto,12,*">
+                                        <ToggleSwitch IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" VerticalAlignment="Top" />
+                                        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{l:T Advanced.ForceDrm}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Advanced.ForceDrmHint}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+
                                     <Grid ColumnDefinitions="*,14,*">
                                         <StackPanel Classes="field" IsEnabled="{Binding CompressionEnabled}">
                                             <TextBlock Classes="label" Text="{l:T Advanced.Threads}" />

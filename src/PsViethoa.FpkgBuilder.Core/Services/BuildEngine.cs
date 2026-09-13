@@ -35,7 +35,8 @@ public sealed class BuildEngine
         BuildRequest request,
         Action<LogEntry> log,
         IProgress<BuildProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string, bool>? diskFullRetry = null)
     {
         var normalized = BuildPreparer.Normalize(request);
         var errors = BuildPreparer.Validate(normalized);
@@ -123,6 +124,21 @@ public sealed class BuildEngine
             cancellationToken.ThrowIfCancellationRequested();
             var options = CreateOptions(normalized, sourceFolder, backend, publishingToolsPath, cancellationToken);
 
+            // Ép DRM "standard" ngay trên param.json mà thư viện sẽ đọc (thư mục nguồn, thư mục trích tạm hoặc rootdir của dự án GP5),
+            // rồi khôi phục nguyên vẹn khi xong. Ảnh gắn chỉ đọc đã được DecideStrategy chuyển sang giải nén từ trước.
+            using var drmSwap = normalized.ForceStandardDrm ? TryForceStandardDrm(ParamJsonPathFor(source, project, sourceFolder), log) : null;
+
+            // Đĩa đầy giữa chừng: thư viện 0.6.5 cho phép tạm dừng, chờ người dùng giải phóng dung lượng rồi thử lại thay vì huỷ.
+            using var diskRecovery = diskFullRetry != null
+                ? ProsperoDiskSpaceRecovery.BeginScope(info =>
+                {
+                    log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DiskFull", info.Path, info.Error.Message)));
+                    var retry = diskFullRetry(info.Path);
+                    log(new LogEntry(retry ? LogLevel.Info : LogLevel.Warning, Loc.T(retry ? "Plan.DiskFullRetry" : "Plan.DiskFullCancel")));
+                    return retry;
+                }, cancellationToken)
+                : null;
+
             var result = await Task.Run(
                 () => ProsperoPackageBuilder.Build(options, message =>
                 {
@@ -179,9 +195,51 @@ public sealed class BuildEngine
         }
     }
 
+    /// <summary>param.json mà thư viện sẽ đọc: rootdir của dự án GP5, hoặc &lt;thư mục nguồn thực tế&gt;/sce_sys/param.json.</summary>
+    private static string ParamJsonPathFor(SourceInfo source, Gp5ProjectInfo? project, string sourceFolder) =>
+        source.IsGp5 && project?.ParamJsonPath != null ? project.ParamJsonPath : Path.Combine(sourceFolder, "sce_sys", "param.json");
+
+    private static ParamJsonDrmSwap? TryForceStandardDrm(string paramJsonPath, Action<LogEntry> log)
+    {
+        if (!File.Exists(paramJsonPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ParamJsonDrmSwap.Apply(paramJsonPath, log);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DrmForceFailed", ex.Message)));
+            return null;
+        }
+    }
+
+    /// <summary>Ảnh exFAT có param.json cần ép DRM không — khi gắn chỉ đọc thì không sửa được, phải giải nén.</summary>
+    private static bool ImageNeedsDrmRewrite(SourceInfo source)
+    {
+        try
+        {
+            return ParamJsonDrmSwap.NeedsRewrite(MetadataReader.Read(source.Path, CancellationToken.None).ApplicationDrmType);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Chọn cách xử lý ảnh exFAT: gắn (macOS, ảnh sạch) hoặc giải nén.</summary>
     public static ExFatStrategy DecideStrategy(BuildRequest request, SourceInfo source, Action<LogEntry>? log)
     {
+        if (request.ForceStandardDrm && source.IsExFat && !source.IsPfsContainer && request.ExFat != ExFatStrategy.Extract && ImageNeedsDrmRewrite(source))
+        {
+            // param.json trong ảnh mang DRM khác "standard": ảnh gắn là chỉ đọc nên phải giải nén để ép DRM.
+            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountDrm")));
+            return ExFatStrategy.Extract;
+        }
+
         if (source.IsPfsContainer)
         {
             // Ảnh exFAT nằm trong container .ffpfsc: hdiutil không gắn được tệp này → luôn giải nén qua lớp PFS của thư viện.
@@ -320,6 +378,7 @@ public sealed class BuildEngine
         }
 
         log(new LogEntry(LogLevel.Info, DescribeCompressionProfile(request)));
+        log(new LogEntry(LogLevel.Info, Loc.T(request.ForceStandardDrm ? "Plan.DrmPolicyOn" : "Plan.DrmPolicyOff")));
         if (request.PfsFormat == PfsFormat.V3)
         {
             // Theo tác giả thư viện: PFS v3 cần firmware PS5 7.00+, tối ưu shuffle chỉ phát huy đầy đủ ở Kraken mức 9.

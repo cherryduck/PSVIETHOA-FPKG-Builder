@@ -16,7 +16,7 @@ Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
 ![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-116%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-123%20passing-22C55E)
 
 </div>
 
@@ -36,12 +36,13 @@ Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v
 
 ## Vì sao?
 
-Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng **WPF chỉ chạy trên Windows**. PSVIETHOA FPKG Builder được viết lại hoàn toàn bằng **C# / .NET 10 + Avalonia UI**, chạy native trên **macOS (Apple Silicon & Intel) và Windows**, bổ sung **giao diện song ngữ**, nhận **ảnh đĩa `.exfat`** làm nguồn, và chú trọng vào việc **chạy mượt, nhanh khi tạo gói từ những thư mục game rất lớn** (vài chục GB). Lõi tạo gói là **LibProsperoPkg** của **Drakmor** (bản dựng tháng 9/2026 phát hành cùng fpkg‑gui 0.6.2), nên gói tạo ra chính xác đến từng byte.
+Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng **WPF chỉ chạy trên Windows**. PSVIETHOA FPKG Builder được viết lại hoàn toàn bằng **C# / .NET 10 + Avalonia UI**, chạy native trên **macOS (Apple Silicon & Intel) và Windows**, bổ sung **giao diện song ngữ**, nhận **ảnh đĩa `.exfat`** làm nguồn, và chú trọng vào việc **chạy mượt, nhanh khi tạo gói từ những thư mục game rất lớn** (vài chục GB). Lõi tạo gói là **LibProsperoPkg** của **Drakmor** (bản dựng tháng 9/2026 phát hành cùng fpkg‑gui 0.6.5), nên gói tạo ra chính xác đến từng byte.
 
 > Kết quả là một **FPKG debug** (ảnh FIH, signed byte `0x00`) — chỉ cài được trên **PS5 đã bật chế độ debug**.
 
 ## Có gì mới trong 2.1.x
 
+- **2.1.5 — engine từ fpkg‑gui 0.6.5 + sửa DRM**: `applicationDrmType` được ép thành `"standard"` trong lúc tạo gói (gói tạo với DRM `"free"` hiện biểu tượng khoá trên PS5 và không chạy được); `param.json` nguồn được khôi phục nguyên vẹn sau đó, ảnh chỉ đọc sẽ được giải nén thay vì gắn khi cần (công tắc trong tuỳ chọn nâng cao, CLI `--keep-drm`). **Chống đầy đĩa**: khi ổ tạm hoặc ổ xuất hết chỗ, quá trình tạo gói tạm dừng để bạn giải phóng dung lượng rồi thử lại.
 - **2.1.4 — nguồn `.ffpfsc`**: container PFS PS5 chứa bản dump exFAT nén PFSC mở như ảnh `.exfat` (giải nén trực tiếp, không tạo tệp trung gian; nút **Tệp .ffpfsc** riêng, kéo thả, `fpkg-cli inspect / build --source x.ffpfsc`). **Kiểm tra cập nhật**: huy hiệu xanh ở header khi GitHub có bản mới (kiểm tra mỗi lần mở, nút ↻, `fpkg-cli check-update`).
 - **2.1.1 – 2.1.3**: trích xuất theo bố cục Sony (`sce_sys` tạo gói lại được), thư mục xuất tự đặt, preset "Tiêu chuẩn", huy hiệu phiên bản, xoá lịch sử, lưới an toàn giao diện.
 
@@ -160,7 +161,7 @@ src/
   PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
   PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
   PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (68 tests)
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (123 tests)
 scripts/                              # publish + dev scripts
 ```
 </details>

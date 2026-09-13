@@ -443,6 +443,11 @@ internal static class CommandLine
             request.SkipPfsInputCheck = true;
         }
 
+        if (arguments.Has("keep-drm"))
+        {
+            request.ForceStandardDrm = false;
+        }
+
         if (arguments.Has("no-layout-optimization"))
         {
             request.LayoutOptimization = false;
@@ -500,7 +505,21 @@ internal static class CommandLine
             request,
             renderer.Log,
             new Progress<BuildProgress>(renderer.Update),
-            cancellation.Token);
+            cancellation.Token,
+            path =>
+            {
+                // Đĩa đầy: chờ người dùng giải phóng dung lượng rồi nhấn Enter để thử lại; 'q' hoặc không có bàn phím → huỷ.
+                Console.Error.WriteLine();
+                Console.Error.WriteLine(Loc.F("Build.DiskFullBody", path));
+                Console.Error.Write(Loc.T("Cli.DiskFullPrompt"));
+                if (Console.IsInputRedirected)
+                {
+                    return false;
+                }
+
+                var answer = Console.ReadLine();
+                return answer != null && !answer.Trim().StartsWith("q", StringComparison.OrdinalIgnoreCase);
+            });
 
         renderer.Finish();
 

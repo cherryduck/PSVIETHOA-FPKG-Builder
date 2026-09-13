@@ -68,6 +68,9 @@ public sealed class BuildRequest
     /// <summary>Gộp khối và điều chỉnh canh lề bố cục vật lý như Publishing Tools (khuyên bật).</summary>
     public bool LayoutOptimization { get; set; } = true;
 
+    /// <summary>Ép applicationDrmType = "standard" trong lúc tạo gói (tránh game bị khoá trên PS5); tệp nguồn được khôi phục sau đó.</summary>
+    public bool ForceStandardDrm { get; set; } = true;
+
     /// <summary>Cách đọc nguồn (thư mục rời / GP5).</summary>
     public SourceMode SourceMode { get; set; } = SourceMode.Auto;
 

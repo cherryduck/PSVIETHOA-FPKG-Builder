@@ -5507,6 +5507,7 @@
             <param name="externalPfsImagePath">
             Optional staged outer-PFS file. When supplied, its bytes replace the PFS range in the CNT;
             this avoids embedding the same multi-gigabyte image in a short-lived intermediate CNT.
+            The CNT may end exactly at its declared PFS offset, containing only metadata.
             </param>
             <param name="externalPfsImageOffset">Byte offset of the outer PFS inside the external file.</param>
             <param name="pfsImageAlreadyInOutput">
@@ -6906,7 +6907,9 @@
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.DeferPublisherPfsEmbedding">
             <summary>
             Leaves the large outer PFS in its staging file for a following FIH finalization pass instead
-            of copying it into the temporary CNT. Low-level/CNT-only builds keep the default false.
+            of copying it into the temporary CNT. The CNT contains only metadata and ends at its
+            declared PFS offset; finalization requires the external image. Low-level/CNT-only builds
+            keep the default false.
             </summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PrepositionedFihOutputPath">
@@ -8287,6 +8290,22 @@
         <member name="M:LibProsperoPkg.ProsperoContentVersion.ParseOrDefault(System.String)">
             <summary>Parses a version or returns the publisher default <c>01.000.000</c>.</summary>
         </member>
+        <member name="T:LibProsperoPkg.ProsperoDiskFullInfo">
+            <summary>A failed filesystem operation caused by insufficient disk space.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.ProsperoDiskFullInfo.#ctor(System.String,System.IO.IOException)">
+            <summary>A failed filesystem operation caused by insufficient disk space.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.ProsperoDiskSpaceRecovery">
+            <summary>Opt-in, build-scoped recovery from a full destination or temporary disk.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.ProsperoDiskSpaceRecovery.BeginScope(System.Func{LibProsperoPkg.ProsperoDiskFullInfo,System.Boolean},System.Threading.CancellationToken)">
+            <summary>
+            Installs a synchronous retry/cancel callback for this execution context and its workers.
+            Return true after freeing space to retry the failed operation, or false to cancel.
+            No callback is installed for other builds or command-line callers by default.
+            </summary>
+        </member>
         <member name="T:LibProsperoPkg.ProsperoPackageMode">
             <summary>The kind of PS5 package to produce.</summary>
         </member>
@@ -8834,6 +8853,9 @@
         <member name="M:LibProsperoPkg.Util.BoundedBuildCache`2.Compact(`0,`1)">
             <summary>Replaces a completed payload with a smaller value, e.g. its written offset.</summary>
         </member>
+        <member name="T:LibProsperoPkg.Util.BuildFileIO">
+            <summary>Filesystem writes that can pause before stack unwinding destroys build intermediates.</summary>
+        </member>
         <member name="M:LibProsperoPkg.Util.Crypto.RsaPkcs1EncryptKey(System.Byte[],System.Byte[],System.Boolean)">
             <summary>
             Wraps data with an RSA public modulus (public exponent 65537) using
@@ -9065,6 +9087,13 @@
             Writes the current digest directly to <paramref name="destination"/> and resets the
             context for reuse. This avoids allocating a digest array and, for OpenSSL, avoids
             repeatedly allocating an <c>EVP_MD_CTX</c> in per-block hashing loops.
+            </summary>
+        </member>
+        <member name="T:LibProsperoPkg.Util.RecoverableFileStream">
+            <summary>
+            Keeps the pending transfer in an owned buffer until the OS write succeeds. FileStream's own
+            buffering is disabled so a partial failed flush cannot leave hidden state that gets replayed.
+            The stream is sequentially owned, just like FileStream; independent writers use independent streams.
             </summary>
         </member>
         <member name="M:LibProsperoPkg.Util.StreamExtensions.ReadInt8(System.IO.Stream)">

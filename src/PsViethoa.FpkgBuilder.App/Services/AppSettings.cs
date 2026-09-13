@@ -52,6 +52,9 @@ public sealed class AppSettings
 
     public bool LayoutOptimization { get; set; } = true;
 
+    /// <summary>Ép applicationDrmType = "standard" khi tạo gói (mặc định bật, theo fpkg-gui 0.6.5).</summary>
+    public bool ForceStandardDrm { get; set; } = true;
+
     public int PlayGoChunks { get; set; } = BuildRequest.MaxPlayGoChunks;
 
     public bool Deterministic { get; set; } = true;

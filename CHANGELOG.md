@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.5 — 2026-09-14
+
+- **LibProsperoPkg from fpkg-gui 0.6.5.** Its "force the DRM mode to standard" fix is implemented in the app: while building, `applicationDrmType` in `sce_sys/param.json` is set to `"standard"` (packages built with `"free"` DRM show a lock on the PS5 and refuse to start); the source file is restored byte-for-byte afterwards, read-only exFAT images are extracted instead of mounted when they need it. Advanced toggle "Force DRM standard" (on by default), CLI `--keep-drm` to opt out.
+- **Disk-full recovery** (new library API): when the temp or output disk fills up, the build pauses and asks you to free space and retry instead of failing; CLI prompts on the console.
+
 ## 2.1.4 — 2026-09-14
 
 - **Check for updates.** The app checks GitHub Releases every time it starts (can be turned off in the advanced options) and shows a green "New version vX.Y.Z" badge that opens the download, puts a dot on the ↻ button and asks whether to download it on every start; the ↻ button checks manually; CLI `fpkg-cli check-update`.

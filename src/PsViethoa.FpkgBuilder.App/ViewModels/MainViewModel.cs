@@ -466,6 +466,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _skipPfsCheck;
     [ObservableProperty] private bool _layoutOptimization = true;
 
+    /// <summary>Ép DRM "standard" trong lúc tạo gói để game không bị khoá trên PS5 (tệp nguồn được khôi phục sau đó).</summary>
+    [ObservableProperty] private bool _forceStandardDrm = true;
+
     public bool IsPfsV3 => PfsIndex == 1;
 
     partial void OnPfsIndexChanged(int value)
@@ -561,6 +564,27 @@ public sealed partial class MainViewModel : ObservableObject
         var message = Loc.F("App.UnhandledError", exception.Message);
         Log(LogLevel.Error, message + Environment.NewLine + exception);
         StatusText = message;
+    }
+
+    /// <summary>
+    /// Thư viện gọi từ luồng tạo gói khi đĩa đầy: hiện hộp thoại trên luồng giao diện và chờ — "Thử lại" sau khi người dùng
+    /// giải phóng dung lượng, "Huỷ" để dừng. Luồng gọi không phải luồng UI nên chờ đồng bộ ở đây là an toàn.
+    /// </summary>
+    private bool AskDiskFullRetry(string path)
+    {
+        try
+        {
+            return Dispatcher.UIThread.InvokeAsync(() => _dialogs.ConfirmAsync(
+                Loc.T("Build.DiskFullTitle"),
+                Loc.F("Build.DiskFullBody", path),
+                Loc.T("Build.DiskFullRetry"),
+                Loc.T("Common.Cancel"),
+                destructive: true)).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>Esc: huỷ tác vụ đang chạy của chế độ hiện tại (tạo gói hoặc giải nén).</summary>
@@ -903,6 +927,7 @@ public sealed partial class MainViewModel : ObservableObject
             ShuffleAnalysis = s.ShuffleAnalysis;
             SkipPfsCheck = s.SkipPfsInputCheck;
             LayoutOptimization = s.LayoutOptimization;
+            ForceStandardDrm = s.ForceStandardDrm;
             KrakenLevel = Math.Clamp(s.KrakenLevel, BuildRequest.MinKrakenLevel, BuildRequest.MaxKrakenLevel);
             Threads = Math.Clamp(s.Threads, 0, BuildRequest.MaxThreads);
             PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);
@@ -948,6 +973,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.ShuffleAnalysis = ShuffleAnalysis;
         s.SkipPfsInputCheck = SkipPfsCheck;
         s.LayoutOptimization = LayoutOptimization;
+        s.ForceStandardDrm = ForceStandardDrm;
         s.KrakenLevel = (int)Math.Round(KrakenLevel);
         s.Threads = (int)(Threads ?? 0);
         s.PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks);
@@ -1552,6 +1578,7 @@ public sealed partial class MainViewModel : ObservableObject
         ShuffleAnalysis = ShuffleAnalysis,
         SkipPfsInputCheck = SkipPfsCheck,
         LayoutOptimization = LayoutOptimization,
+        ForceStandardDrm = ForceStandardDrm,
         KrakenLevel = (int)Math.Round(KrakenLevel),
         Threads = (int)(Threads ?? 0),
         PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks),
@@ -1705,7 +1732,8 @@ public sealed partial class MainViewModel : ObservableObject
                 request,
                 entry => _pendingLogs.Enqueue(entry),
                 new Progress<BuildProgress>(snapshot => Interlocked.Exchange(ref _pendingProgress, snapshot)),
-                token);
+                token,
+                AskDiskFullRetry);
 
             Drain();
             foreach (var warning in outcome.Warnings)

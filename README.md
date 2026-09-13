@@ -16,7 +16,7 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` 
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
 ![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-116%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-123%20passing-22C55E)
 
 </div>
 
@@ -36,12 +36,13 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` 
 
 ## Why?
 
-Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel) and Windows**, adds a **bilingual interface**, accepts **`.exfat` / `.ffpfsc` disk images and GP5 projects** as sources, can **extract existing packages**, checks GitHub for **updates**, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the September 2026 build shipped with fpkg‑gui 0.6.2), so the packages it produces are byte‑for‑byte correct.
+Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel) and Windows**, adds a **bilingual interface**, accepts **`.exfat` / `.ffpfsc` disk images and GP5 projects** as sources, can **extract existing packages**, checks GitHub for **updates**, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the September 2026 build shipped with fpkg‑gui 0.6.5), so the packages it produces are byte‑for‑byte correct.
 
 > The result is a **debug FPKG** (FIH image, signed byte `0x00`) — it installs only on a **PS5 with debug mode enabled**.
 
 ## What's new in 2.1.x
 
+- **2.1.5 — engine from fpkg‑gui 0.6.5 + DRM fix**: `applicationDrmType` is forced to `"standard"` while building (packages built with `"free"` DRM show a lock on the PS5 and refuse to start); the source `param.json` is restored byte‑for‑byte afterwards, read‑only images are extracted instead of mounted when needed (advanced toggle, CLI `--keep-drm`). **Disk‑full recovery**: when the temp or output disk fills up the build pauses and lets you free space and retry.
 - **2.1.4 — `.ffpfsc` sources**: a PS5 PFS container holding a PFSC‑compressed exFAT dump of a game opens like an `.exfat` image (decompressed on the fly, no intermediate file; separate **.ffpfsc file** button, drag & drop, `fpkg-cli inspect / build --source x.ffpfsc`). **Check for updates**: green header badge when a newer release exists (checked at every start, ↻ button, `fpkg-cli check-update`).
 - **2.1.1 – 2.1.3**: Sony‑layout extraction (rebuildable `sce_sys`), automatic output folders, "Standard" preset naming, version badge, clear history, UI safety net.
 
@@ -160,7 +161,7 @@ src/
   PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
   PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
   PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (116 tests)
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (123 tests)
 scripts/                              # publish + dev scripts
 ```
 </details>

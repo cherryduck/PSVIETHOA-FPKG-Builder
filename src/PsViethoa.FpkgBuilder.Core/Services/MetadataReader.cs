@@ -195,6 +195,7 @@ public static class MetadataReader
             metadata.CategoryType = categoryValue;
         }
 
+        metadata.ApplicationDrmType = ReadString(root, "applicationDrmType");
         metadata.Title = ReadLocalizedTitle(root);
     }
 

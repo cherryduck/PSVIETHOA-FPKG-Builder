@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.3 — 2026-09-14
+
+- Version badge next to the app name in the header and in the window title.
+- "Clear history" link at the end of the recently used sources row (forgets the paths only).
+
 ## 2.1.2 — 2026-09-14
 
 - **Output folders follow the source automatically.** New "Auto from source" (build) and "Auto from package" (extract) toggles, on by default: while on, the output folder is always "<source>-pkg" / "<package>-extract" next to the source and updates the moment you pick another source (browse, drop, recent, typed path); the field is locked. Switch it off to choose your own folder (picking a folder in extract mode switches it off automatically). The choice is remembered.

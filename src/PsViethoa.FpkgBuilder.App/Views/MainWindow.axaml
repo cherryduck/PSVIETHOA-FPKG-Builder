@@ -7,7 +7,7 @@
         xmlns:views="using:PsViethoa.FpkgBuilder.App.Views"
         x:Class="PsViethoa.FpkgBuilder.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="PSVIETHOA FPKG Builder"
+        Title="{Binding WindowTitle}"
         Icon="avares://PsViethoa.FpkgBuilder.App/Assets/icon-256.png"
         Width="1320" Height="880" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen"
@@ -82,7 +82,12 @@
                     <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
                         <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/icon-128.png" Width="40" Height="40" />
                         <StackPanel Spacing="1" VerticalAlignment="Center">
-                            <TextBlock Text="PSVIETHOA FPKG Builder" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" LineHeight="24" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="PSVIETHOA FPKG Builder" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" LineHeight="24" />
+                                <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="{Binding AppVersionText}">
+                                    <TextBlock Text="{Binding HeaderVersion}" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                </Border>
+                            </StackPanel>
                             <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" TextTrimming="CharacterEllipsis" />
                             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
                                 <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
@@ -191,7 +196,8 @@
                                         </Grid>
                                     </StackPanel>
                                     <TextBlock Classes="error" Text="{Binding SourceError}" IsVisible="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
-                                    <ItemsControl ItemsSource="{Binding RecentSources}" IsVisible="{Binding HasRecent}" Margin="0,6,0,0">
+                                    <WrapPanel IsVisible="{Binding HasRecent}" Margin="0,6,0,0">
+                                    <ItemsControl ItemsSource="{Binding RecentSources}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel />
@@ -210,6 +216,13 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+                                    <Button Classes="link" Margin="0,0,4,4" Command="{Binding ClearRecentCommand}" ToolTip.Tip="{l:T Step1.ClearRecentTip}" Opacity="0.75">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <PathIcon Classes="sm" Data="{StaticResource IconClose}" Opacity="0.7" />
+                                            <TextBlock Text="{l:T Step1.ClearRecent}" FontSize="12.5" />
+                                        </StackPanel>
+                                    </Button>
+                                    </WrapPanel>
                                 </StackPanel>
 
                                 <!-- Metadata -->

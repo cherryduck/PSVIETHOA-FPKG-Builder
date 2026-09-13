@@ -110,6 +110,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string AppVersionText => Loc.F("App.VersionLabel", AppInfo.Version, AppInfo.PlatformLabel);
 
+    /// <summary>Phiên bản ngắn hiện cạnh tên ứng dụng ở header ("v2.1.3").</summary>
+    public string HeaderVersion => "v" + AppInfo.Version;
+
+    /// <summary>Tiêu đề cửa sổ kèm phiên bản.</summary>
+    public string WindowTitle => "PSVIETHOA FPKG Builder " + AppInfo.Version;
+
     public string CreditsText => Loc.F("App.Credits", LibraryVersion);
 
     public string ThreadsHint => Loc.F("Advanced.ThreadsHint", ProcessorCount);
@@ -1330,6 +1336,15 @@ public sealed partial class MainViewModel : ObservableObject
                 DiskSummary = report.Summary;
             }
         }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    /// <summary>Xoá danh sách nguồn dùng gần đây (chỉ quên đường dẫn, không đụng vào tệp).</summary>
+    [RelayCommand]
+    private void ClearRecent()
+    {
+        _settings.RecentSources.Clear();
+        OnPropertyChanged(nameof(RecentSources));
+        OnPropertyChanged(nameof(HasRecent));
     }
 
     private void RememberRecent(string source)

@@ -20,6 +20,8 @@
   "Step1.SourceLabel": "PS5 app folder · .exfat image · .gp5 project",
   "Step1.SourceWatermark": "Drop a folder, .exfat image or .gp5 project onto the window, or click Browse…",
   "Step1.OutputLabel": "Output folder for the .pkg",
+  "Step1.ClearRecentTip": "Forget the recently used sources (files are not touched)",
+  "Step1.ClearRecent": "Clear history",
   "Step1.OutputAutoTip": "On: the output folder is always \"<source>-pkg\" next to the source. Off: choose it yourself.",
   "Step1.OutputAuto": "Auto from source",
   "Step1.OutputWatermark": "Suggested next to the source folder (…-pkg)",

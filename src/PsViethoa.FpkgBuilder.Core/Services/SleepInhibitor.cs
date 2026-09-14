@@ -71,8 +71,11 @@ public sealed partial class SleepInhibitor : IDisposable
                 {
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+
+                    // Do NOT redirect: the pipes would be inherited by the long-lived "sleep infinity" grandchild,
+                    // so anything reading them to the end would block until the build finishes.
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
                 };
                 start.ArgumentList.Add("--what=idle:sleep");
                 start.ArgumentList.Add("--who=PSVIETHOA FPKG Builder");
@@ -82,14 +85,20 @@ public sealed partial class SleepInhibitor : IDisposable
                 start.ArgumentList.Add("infinity");
 
                 var process = Process.Start(start);
-                if (process is { HasExited: false })
+                if (process != null)
                 {
-                    inhibitor._caffeinate = process;
-                    inhibitor.Mechanism = "systemd-inhibit";
-                    return inhibitor;
-                }
+                    // Process.Start succeeding says nothing: systemd-inhibit exits in a few ms when it cannot take
+                    // the lock or exec its child, and HasExited is still false at that instant. Give it a moment and
+                    // check it is genuinely running before claiming the machine will stay awake.
+                    if (!process.WaitForExit(250) && !process.HasExited)
+                    {
+                        inhibitor._caffeinate = process;
+                        inhibitor.Mechanism = "systemd-inhibit";
+                        return inhibitor;
+                    }
 
-                process?.Dispose();
+                    process.Dispose();
+                }
             }
         }
         catch (Exception)

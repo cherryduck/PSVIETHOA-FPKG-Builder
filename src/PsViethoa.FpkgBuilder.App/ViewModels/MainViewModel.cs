@@ -410,7 +410,14 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (_lastMetadata != null)
         {
+            // Giữ nguyên những ô người dùng tự nhập: đổi ngôn ngữ không được lặng lẽ trả chúng về giá trị đọc từ nguồn.
+            var contentId = ContentId;
+            var title = Title;
+            var version = Version;
             ApplyMetadata(SourcePath.Trim(), _lastMetadata);
+            ContentId = contentId;
+            Title = title;
+            Version = version;
             if (_lastStats != null)
             {
                 MetaFiles = Loc.F("Meta.Files", Formatters.Count(_lastStats.FileCount), Formatters.Size(_lastStats.TotalBytes));
@@ -472,6 +479,31 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Ép DRM "standard" trong lúc tạo gói để game không bị khoá trên PS5 (tệp nguồn được khôi phục sau đó).</summary>
     [ObservableProperty] private bool _forceStandardDrm = true;
+
+    /// <summary>Dọn tàn dư AMPR emu (ampr_emu.index) khỏi gói — engine đã luôn bỏ module giả lập.</summary>
+    [ObservableProperty] private bool _removeAmprLeftovers = true;
+
+    /// <summary>Bỏ sce_sys/playgo* của bản dump khỏi gói để thư viện tạo bộ PlayGo mới (mặc định bật, theo Drakmor).</summary>
+    [ObservableProperty] private bool _removePlayGoFiles = true;
+
+    /// <summary>Nguồn có bộ giả lập DLC — báo và mời tạo gói DLC riêng.</summary>
+    [ObservableProperty] private bool _hasDlcEmuWarning;
+
+    [ObservableProperty] private string _dlcBuildLabel = string.Empty;
+
+    [ObservableProperty] private bool _canBuildDlc;
+
+    [ObservableProperty] private bool _isBuildingDlc;
+
+    /// <summary>Giữ bộ giả lập DLC (dlc_emu.ini + module fakelib) trong gói — mặc định bật; tắt để dọn khỏi gói.</summary>
+    [ObservableProperty] private bool _keepDlcEmu = true;
+
+    /// <summary>Xoá versionFileUri trong param.json khi tạo gói (bước 2 của hướng dẫn sửa lỗi PlayGo).</summary>
+    [ObservableProperty] private bool _clearVersionFileUri = true;
+
+    /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (bước 2 của hướng dẫn sửa lỗi PlayGo).</summary>
+    [ObservableProperty] private bool _clearPlayGoAttributes = true;
+
 
     public bool IsPfsV3 => PfsIndex == 1;
 
@@ -798,6 +830,28 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Thư mục xuất đã có gói cùng tên: hỏi ghi đè, giữ bản cũ (đổi tên) hay huỷ. Gọi từ luồng nền nên chờ đồng bộ trên luồng UI.
+    /// </summary>
+    private OutputConflictChoice AskOutputConflict(IReadOnlyList<string> existing)
+    {
+        try
+        {
+            var names = string.Join("\n", existing.Select(Path.GetFileName));
+            return Dispatcher.UIThread.InvokeAsync(() => _dialogs.AskOutputConflictAsync(
+                Loc.T("Conflict.Title"),
+                Loc.F("Conflict.Body", names),
+                Loc.T("Conflict.Overwrite"),
+                Loc.T("Conflict.Keep"),
+                Loc.T("Common.Cancel"))).GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            // Không hỏi được thì huỷ: ghi đè im lặng là phá đúng tệp mà người dùng có thể muốn giữ.
+            return OutputConflictChoice.Cancel;
+        }
+    }
+
     /// <summary>Esc: huỷ tác vụ đang chạy của chế độ hiện tại (tạo gói hoặc giải nén).</summary>
     [RelayCommand]
     private void CancelActive()
@@ -958,7 +1012,15 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshValidation();
         if (_lastMetadata != null)
         {
-            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(value ?? BuildRequest.MaxPlayGoChunks));
+            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(value ?? BuildRequest.MaxPlayGoChunks), RemovePlayGoFiles);
+        }
+    }
+
+    partial void OnRemovePlayGoFilesChanged(bool value)
+    {
+        if (_lastMetadata != null)
+        {
+            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks), value);
         }
     }
 
@@ -1139,6 +1201,11 @@ public sealed partial class MainViewModel : ObservableObject
             SkipPfsCheck = s.SkipPfsInputCheck;
             LayoutOptimization = s.LayoutOptimization;
             ForceStandardDrm = s.ForceStandardDrm;
+            RemoveAmprLeftovers = s.RemoveAmprLeftovers;
+            RemovePlayGoFiles = s.RemovePlayGoFiles;
+            KeepDlcEmu = s.KeepDlcEmu;
+            ClearVersionFileUri = s.ClearVersionFileUri;
+            ClearPlayGoAttributes = s.ClearPlayGoAttributes;
             KrakenLevel = Math.Clamp(s.KrakenLevel, BuildRequest.MinKrakenLevel, BuildRequest.MaxKrakenLevel);
             Threads = Math.Clamp(s.Threads, 0, BuildRequest.MaxThreads);
             PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);
@@ -1160,6 +1227,83 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         SyncPresetFromSettings();
+    }
+
+    /// <summary>
+    /// Khôi phục mọi tuỳ chọn tạo gói về mặc định (preset, mức nén, PFS, khối, shuffle, DRM "standard", bỏ playgo*, dọn AMPR,
+    /// số khối PlayGo, SDK, tạo gói xác định, SHA-256, chống ngủ máy, kiểm tra cập nhật, tự cuộn nhật ký). Giữ nguyên đường dẫn
+    /// nguồn / xuất / tạm, thông tin gói đọc từ nguồn, ngôn ngữ, giao diện, lịch sử và kích thước cửa sổ.
+    /// </summary>
+    [RelayCommand]
+    private async Task ResetSettingsAsync()
+    {
+        if (IsBuilding)
+        {
+            return;
+        }
+
+        var proceed = await _dialogs.ConfirmAsync(Loc.T("Reset.Title"), Loc.T("Reset.Body"), Loc.T("Reset.Confirm"), Loc.T("Common.Cancel"));
+        if (!proceed)
+        {
+            return;
+        }
+
+        // Đồng bộ giao diện -> cấu hình trước, để LoadSettings không ghi đè đường dẫn / thông tin gói vừa nhập bằng bản cũ.
+        SaveSettings();
+
+        // SDK bám theo nguồn: lấy từ metadata nếu đọc được, nếu không thì giữ đúng giá trị đang hiển thị (khi Override tắt,
+        // giá trị đó chính là SDK của game). Phải chụp TRƯỚC khi LoadSettings đưa mọi thứ về mặc định.
+        var sourceSdkIndex = _lastMetadata?.SdkMajor is { } major && major >= SdkVersions.MinMajor && major <= SdkVersions.MaxMajor
+            ? major - 1
+            : OverrideSdk ? (int?)null : SdkIndex;
+        var d = new AppSettings();
+        var s = _settings;
+        s.ExFat = d.ExFat;
+        s.SourceMode = d.SourceMode;
+        s.Kind = d.Kind;
+        s.ImageMode = d.ImageMode;
+        s.KrakenBackend = d.KrakenBackend;
+        s.KrakenLevel = d.KrakenLevel;
+        s.Threads = d.Threads;
+        s.PfsFormat = d.PfsFormat;
+        s.KrakenBlockKiB = d.KrakenBlockKiB;
+        s.ShufflePattern = d.ShufflePattern;
+        s.ShuffleAnalysis = d.ShuffleAnalysis;
+        s.SkipPfsInputCheck = d.SkipPfsInputCheck;
+        s.LayoutOptimization = d.LayoutOptimization;
+        s.ForceStandardDrm = d.ForceStandardDrm;
+        s.RemovePlayGoFiles = d.RemovePlayGoFiles;
+        s.RemoveAmprLeftovers = d.RemoveAmprLeftovers;
+        s.KeepDlcEmu = d.KeepDlcEmu;
+        s.ClearVersionFileUri = d.ClearVersionFileUri;
+        s.ClearPlayGoAttributes = d.ClearPlayGoAttributes;
+        s.PlayGoChunks = d.PlayGoChunks;
+        s.Deterministic = d.Deterministic;
+        s.ComputeSha256 = d.ComputeSha256;
+        s.PreventSleep = d.PreventSleep;
+        s.OverrideSdk = d.OverrideSdk;
+        s.SdkMajor = d.SdkMajor;
+        s.CheckUpdatesOnStartup = d.CheckUpdatesOnStartup;
+        s.AutoScrollLog = d.AutoScrollLog;
+        LoadSettings();
+
+        // Passcode không nằm trong cấu hình lưu, phải tự đưa về mặc định; dự án GP5 thì lấy lại passcode ghi trong dự án.
+        Passcode = new string('0', BuildRequest.PasscodeLength);
+
+        // SDK và passcode của dự án bám theo nguồn đang mở, không phải giá trị mặc định của ứng dụng.
+        if (_lastMetadata is { } metadata)
+        {
+            ApplyProjectPasscode(metadata);
+        }
+
+        if (sourceSdkIndex is { } keep && keep >= 0 && keep < SdkOptions.Count)
+        {
+            SdkIndex = keep;
+        }
+
+        UpdateHints();
+        SaveSettings();
+        Log(LogLevel.Info, Loc.F("Reset.DoneSdk", SdkIndex + 1));
     }
 
     public void SaveSettings()
@@ -1185,6 +1329,11 @@ public sealed partial class MainViewModel : ObservableObject
         s.SkipPfsInputCheck = SkipPfsCheck;
         s.LayoutOptimization = LayoutOptimization;
         s.ForceStandardDrm = ForceStandardDrm;
+        s.RemoveAmprLeftovers = RemoveAmprLeftovers;
+        s.RemovePlayGoFiles = RemovePlayGoFiles;
+        s.KeepDlcEmu = KeepDlcEmu;
+        s.ClearVersionFileUri = ClearVersionFileUri;
+        s.ClearPlayGoAttributes = ClearPlayGoAttributes;
         s.KrakenLevel = (int)Math.Round(KrakenLevel);
         s.Threads = (int)(Threads ?? 0);
         s.PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks);
@@ -1578,6 +1727,9 @@ public sealed partial class MainViewModel : ObservableObject
         MetaFiles = string.Empty;
         MetaTitleId = string.Empty;
         PlayGoText = string.Empty;
+        Passcode = new string('0', BuildRequest.PasscodeLength);
+        HasDlcEmuWarning = false;
+        CanBuildDlc = false;
         HasEboot = false;
         IconImage = null;
         IsScanning = false;
@@ -1595,6 +1747,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         HasSource = true;
         HasEboot = metadata.HasEboot;
+        ApplyAmprInfo(metadata.Ampr);
+        ApplyDlcEmuInfo(metadata.DlcEmu);
         IsExFatSource = metadata.IsExFat;
         IsPfsContainerSource = metadata.IsPfsContainer;
         var volumeLabel = string.IsNullOrWhiteSpace(metadata.VolumeLabel) ? "—" : metadata.VolumeLabel;
@@ -1614,7 +1768,7 @@ public sealed partial class MainViewModel : ObservableObject
             MetaFiles = Loc.T("Meta.Scanning");
         }
 
-        PlayGoText = MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks));
+        PlayGoText = MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks), RemovePlayGoFiles);
 
         if (!metadata.HasSceSys)
         {
@@ -1676,6 +1830,80 @@ public sealed partial class MainViewModel : ObservableObject
         JunkSummary = JunkCount == 0
             ? string.Empty
             : Loc.F(JunkReadOnly ? "Junk.SummaryReadOnly" : "Junk.Summary", JunkCount);
+    }
+
+    /// <summary>Ghi vào nhật ký dấu vết AMPR emu trong nguồn (tàn dư sẽ được bỏ khi tạo gói).</summary>
+    private void ApplyAmprInfo(AmprInfo ampr)
+    {
+        if (ampr.Relevant)
+        {
+            Log(LogLevel.Info, Loc.F("Cli.Ampr", AmprInspector.Describe(ampr)));
+        }
+    }
+
+    /// <summary>Báo "phát hiện DLC" và bật nút tạo gói DLC khi đọc được dlc_emu.ini (bộ giả lập vẫn được giữ trong gói theo mặc định).</summary>
+    private void ApplyDlcEmuInfo(DlcEmuInfo info)
+    {
+        HasDlcEmuWarning = info.Present;
+        CanBuildDlc = false;
+        DlcBuildLabel = string.Empty;
+        _dlcEntries = Array.Empty<DlcEmuEntry>();
+        if (!info.Present)
+        {
+            return;
+        }
+
+        Log(LogLevel.Info, Loc.F("Cli.DlcEmu", DlcEmuInspector.Describe(info)));
+        var source = SourcePath.Trim();
+        _ = Task.Run(() => DlcEmuIni.Read(source, CancellationToken.None)).ContinueWith(task =>
+        {
+            if (!task.IsCompletedSuccessfully || !string.Equals(SourcePath.Trim(), source, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _dlcEntries = task.Result;
+            CanBuildDlc = _dlcEntries.Count > 0;
+            DlcBuildLabel = Loc.F("Dlc.BuildButton", _dlcEntries.Count);
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    private IReadOnlyList<DlcEmuEntry> _dlcEntries = Array.Empty<DlcEmuEntry>();
+
+    /// <summary>Tạo một gói DLC riêng cho từng mục trong dlc_emu.ini của game, đặt cạnh gói game.</summary>
+    [RelayCommand]
+    private async Task BuildDlcPackagesAsync()
+    {
+        if (IsBuildingDlc || _dlcEntries.Count == 0)
+        {
+            return;
+        }
+
+        var output = OutputFolder.Trim();
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            await _dialogs.ShowErrorAsync(Loc.T("Dlc.NoneTitle"), Loc.T("Val.OutputRequired"));
+            return;
+        }
+
+        IsBuildingDlc = true;
+        try
+        {
+            var temporary = string.IsNullOrWhiteSpace(TemporaryFolder) ? BuildPreparer.SuggestTemporaryFolder(output) : TemporaryFolder.Trim();
+            var entries = _dlcEntries;
+            var title = Title;
+            var results = await Task.Run(() => DlcPackageBuilder.BuildAll(entries, output, temporary, title, e => Log(e.Level, e.Message), CancellationToken.None, AskOutputConflict));
+            var ok = results.Count(r => r.Success);
+            await _dialogs.ShowInfoAsync(Loc.T("Dlc.DoneTitle"), Loc.F("Dlc.DoneBody", ok, results.Count, output));
+        }
+        catch (Exception ex)
+        {
+            await _dialogs.ShowErrorAsync(Loc.T("Dlc.NoneTitle"), ex.Message);
+        }
+        finally
+        {
+            IsBuildingDlc = false;
+        }
     }
 
     private bool WillExtractExFat =>
@@ -1790,6 +2018,11 @@ public sealed partial class MainViewModel : ObservableObject
         SkipPfsInputCheck = SkipPfsCheck,
         LayoutOptimization = LayoutOptimization,
         ForceStandardDrm = ForceStandardDrm,
+        RemoveAmprLeftovers = RemoveAmprLeftovers,
+        RemovePlayGoFiles = RemovePlayGoFiles,
+        KeepDlcEmu = KeepDlcEmu,
+        ClearVersionFileUri = ClearVersionFileUri,
+        ClearPlayGoAttributes = ClearPlayGoAttributes,
         KrakenLevel = (int)Math.Round(KrakenLevel),
         Threads = (int)(Threads ?? 0),
         PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks),
@@ -1944,7 +2177,8 @@ public sealed partial class MainViewModel : ObservableObject
                 entry => _pendingLogs.Enqueue(entry),
                 new Progress<BuildProgress>(snapshot => Interlocked.Exchange(ref _pendingProgress, snapshot)),
                 token,
-                AskDiskFullRetry);
+                AskDiskFullRetry,
+                AskOutputConflict);
 
             Drain();
             foreach (var warning in outcome.Warnings)
@@ -1979,7 +2213,7 @@ public sealed partial class MainViewModel : ObservableObject
                 NoticeBanner = Loc.F("Build.WarningsNotice", outcome.Warnings.Count);
             }
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             Drain();
             Log(LogLevel.Warning, Loc.T("Build.UserCanceled"));

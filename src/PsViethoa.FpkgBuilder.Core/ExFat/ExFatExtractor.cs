@@ -64,7 +64,8 @@ public static class ExFatExtractor
         foreach (var directory in plan.Directories)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Directory.CreateDirectory(Path.Combine(destination, ToLocalPath(directory.RelativeTo(plan.AppRoot))));
+            // Ảnh có thể đến từ nguồn không tin cậy: chặn tên đi ngược ra ngoài thư mục đích ("../..").
+            Directory.CreateDirectory(Services.PackageReader.SafeTarget(destination, directory.RelativeTo(plan.AppRoot)));
         }
 
         long done = 0;
@@ -101,7 +102,7 @@ public static class ExFatExtractor
 
         Parallel.ForEach(ordered, options, file =>
         {
-            var target = Path.Combine(destination, ToLocalPath(file.RelativeTo(plan.AppRoot)));
+            var target = Services.PackageReader.SafeTarget(destination, file.RelativeTo(plan.AppRoot));
             var parent = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(parent))
             {

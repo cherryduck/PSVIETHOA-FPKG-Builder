@@ -16,7 +16,7 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` 
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
 ![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-144%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-170%20passing-22C55E)
 
 </div>
 
@@ -42,6 +42,7 @@ Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. 
 
 ## What's new in 2.1.x
 
+- **2.1.7 — "application error" at game start, fixed at packaging time**: an FPKG is one unified image while PlayGo expects chunk-based installs, so the dump's PlayGo data makes the PS5 look for chunks that do not exist (a splash-screen hang without an error is a different, kernel-side problem). Builds now apply the known fix by default for **folders, `.exfat`, `.ffpfsc` and GP5 projects**: the `sce_sys/playgo*` files are left out (the library regenerates a matching set), `versionFileUri` is cleared and `attribute3` is set to 0 — three toggles in the advanced options, CLI `--keep-playgo` / `--keep-version-uri` / `--keep-attribute3`. `fakelib/libScePlayGo.sprx` is never touched by the tool (the engine itself drops it, like `libSceAmpr.sprx`). The leftover `ampr_emu.index` is removed too (`--keep-ampr`). The engine itself always strips `fakelib/libScePlayGo.sprx` and `fakelib/libSceAmpr.sprx` and offers no option to keep them; this tool never touches those files. Drakmor's `dlc_emu` stays in the package, and when a dump carries one the source card offers to **build one DLC package per entry of `dlc_emu.ini`** (`fpkg-cli dlc-from-ini`), each with its own RIF licence. "DRM standard" and "Drop old playgo*" are checkboxes next to the Build button, plus a **Restore defaults** link. Building over a same-named package now asks whether to overwrite, keep the old one (`… (1).pkg`) or cancel. The source folder, image and `.gp5` project are strictly read-only: the build assembles a mirror of the dump in the temporary folder out of links, drops the skipped files there and writes the patched `param.json` there, so nothing in your own folder is ever opened for writing.
 - **2.1.6 — Windows mounts images too**: a read‑only virtual drive (Dokan) served by the app's own exFAT reader exposes the app folder of an `.exfat` **or `.ffpfsc`** image, so the packager reads straight from the image like `hdiutil` on macOS — no 149 GB extraction, no extra disk space; junk files are hidden and the DRM fix is applied on the virtual drive. **Windows installer** (`Setup.exe`) installs the app and the bundled Dokan driver in one go; the portable zip enables the driver by itself on first launch (only the UAC prompt) — nothing to download either way. New **Components & plugins** box in the advanced options checks for real that the engine, keys, Kraken, native Oodle, mounting and the sleep guard work. Without the driver the extraction path is used as before.
 - **2.1.5 — engine from fpkg‑gui 0.6.5 + DRM fix**: `applicationDrmType` is forced to `"standard"` while building (packages built with `"free"` DRM show a lock on the PS5 and refuse to start); the source `param.json` is restored byte‑for‑byte afterwards, read‑only images are extracted instead of mounted when needed (advanced toggle, CLI `--keep-drm`). **Disk‑full recovery**: when the temp or output disk fills up the build pauses and lets you free space and retry.
 - **2.1.4 — `.ffpfsc` sources**: a PS5 PFS container holding a PFSC‑compressed exFAT dump of a game opens like an `.exfat` image (decompressed on the fly, no intermediate file; separate **.ffpfsc file** button, drag & drop, `fpkg-cli inspect / build --source x.ffpfsc`). **Check for updates**: green header badge when a newer release exists (checked at every start, ↻ button, `fpkg-cli check-update`).
@@ -163,7 +164,7 @@ src/
   PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
   PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
   PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (144 tests)
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (170 tests)
 scripts/                              # publish + dev scripts
 ```
 </details>

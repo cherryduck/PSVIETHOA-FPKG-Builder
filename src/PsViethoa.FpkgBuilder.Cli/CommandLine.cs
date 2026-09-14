@@ -138,6 +138,7 @@ internal static class CommandLine
                 "build" => await BuildAsync(arguments),
                 "inspect" => Inspect(arguments),
                 "install-dokan" => InstallDokan(),
+                "dlc-from-ini" => DlcFromIni(arguments),
                 "verify" => Verify(arguments),
                 "clean-junk" => CleanJunk(arguments),
                 "info" => Info(),
@@ -176,6 +177,36 @@ internal static class CommandLine
             return 2;
         }
     }
+
+    /// <summary>Gói trùng tên trong thư mục xuất: --overwrite ghi đè, --keep-existing giữ bản cũ, mặc định hỏi trên console.</summary>
+    private static Func<IReadOnlyList<string>, OutputConflictChoice> ConflictPrompt(Arguments arguments) => existing =>
+    {
+        if (arguments.Has("overwrite"))
+        {
+            return OutputConflictChoice.Overwrite;
+        }
+
+        if (arguments.Has("keep-existing"))
+        {
+            return OutputConflictChoice.KeepExisting;
+        }
+
+        Console.WriteLine(Loc.F("Cli.ConflictFound", string.Join(", ", existing.Select(Path.GetFileName))));
+        if (Console.IsInputRedirected)
+        {
+            Console.WriteLine(Loc.T("Cli.ConflictNeedChoice"));
+            return OutputConflictChoice.Overwrite;
+        }
+
+        Console.Write(Loc.T("Conflict.Overwrite") + " [o] / " + Loc.T("Conflict.Keep") + " [k] / " + Loc.T("Common.Cancel") + " [c]? ");
+        var key = Console.ReadLine()?.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "k" => OutputConflictChoice.KeepExisting,
+            "c" => OutputConflictChoice.Cancel,
+            _ => OutputConflictChoice.Overwrite,
+        };
+    };
 
     private static int Unknown(string command)
     {
@@ -221,6 +252,38 @@ internal static class CommandLine
         Console.WriteLine();
         Console.WriteLine(ComponentProbe.Report(ComponentProbe.Run(dll), Loc.T("Cli.ComponentsHeader")));
         return 0;
+    }
+
+    /// <summary>dlc-from-ini: tạo một gói DLC riêng cho từng mục trong dlc_emu.ini của game.</summary>
+    private static int DlcFromIni(Arguments arguments)
+    {
+        var source = arguments.Positionals.Skip(1).FirstOrDefault() ?? arguments.Get("source", "s");
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            Console.Error.WriteLine(Loc.T("Cli.NeedSource"));
+            return 1;
+        }
+
+        var entries = DlcEmuIni.Read(source, CancellationToken.None);
+        if (entries.Count == 0)
+        {
+            Console.Error.WriteLine(Loc.T("Cli.DlcNeedIni"));
+            return 1;
+        }
+
+        var output = arguments.Get("output", "o") ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(source)) ?? ".", "dlc-pkg");
+        var temp = arguments.Get("temp") ?? BuildPreparer.SuggestTemporaryFolder(output);
+        Console.WriteLine(Loc.T("Cli.DlcHeader"));
+        foreach (var entry in entries)
+        {
+            Console.WriteLine($"  - {entry.ContentId} ({entry.DownloadStatus})");
+        }
+
+        var title = arguments.Get("title", "t");
+        var results = DlcPackageBuilder.BuildAll(entries, output, temp, title, e => Console.WriteLine("  " + e.Message), CancellationToken.None, ConflictPrompt(arguments));
+        var ok = results.Count(r => r.Success);
+        Console.WriteLine(Loc.F("Cli.DlcSummary", ok, results.Count, Path.GetFullPath(output)));
+        return ok == results.Count ? 0 : 2;
     }
 
     /// <summary>Cài driver Dokan kèm theo (Windows) để gắn ảnh .exfat/.ffpfsc không sao chép.</summary>
@@ -294,7 +357,7 @@ internal static class CommandLine
         Console.WriteLine(metadata.HasParamJson
             ? Loc.F("Cli.Param", metadata.ContentId ?? "—", metadata.Version ?? "—", metadata.SdkMajor?.ToString() ?? "—", metadata.Title ?? "—")
             : Loc.T("Cli.NoParam") + (metadata.ParamJsonError != null ? " (" + metadata.ParamJsonError + ")" : string.Empty));
-        Console.WriteLine(MetadataReader.DescribePlayGo(metadata, BuildRequest.MaxPlayGoChunks));
+        Console.WriteLine(MetadataReader.DescribePlayGo(metadata, BuildRequest.MaxPlayGoChunks, !arguments.Has("keep-playgo")));
 
         var stats = FolderScanner.Scan(source, CancellationToken.None);
         Console.WriteLine(Loc.F("Cli.Stats", Formatters.Count(stats.FileCount), Formatters.Count(stats.DirectoryCount), Formatters.SizeWithBytes(stats.TotalBytes), Formatters.Size(stats.LargestFileBytes), stats.ScanDuration.TotalMilliseconds.ToString("0")));
@@ -304,6 +367,21 @@ internal static class CommandLine
         foreach (var item in junk.Take(10))
         {
             Console.WriteLine("  - " + item.Path);
+        }
+
+        Console.WriteLine(Loc.F("Cli.Ampr", metadata.Ampr.Relevant ? AmprInspector.Describe(metadata.Ampr) : Loc.T("Cli.AmprNone")));
+        Console.WriteLine(Loc.F("Cli.DlcEmu", metadata.DlcEmu.Present ? DlcEmuInspector.Describe(metadata.DlcEmu) : Loc.T("Cli.DlcNone")));
+        if (metadata.DlcEmu.Present)
+        {
+            var dlcEntries = DlcEmuIni.Read(source, CancellationToken.None);
+            if (dlcEntries.Count > 0)
+            {
+                Console.WriteLine(Loc.T("Cli.DlcHeader"));
+                foreach (var dlc in dlcEntries)
+                {
+                    Console.WriteLine($"  - {dlc.ContentId} ({dlc.DownloadStatus})");
+                }
+            }
         }
 
         var output = arguments.Get("output", "o") ?? BuildPreparer.SuggestOutputFolder(source);
@@ -490,6 +568,31 @@ internal static class CommandLine
             request.ForceStandardDrm = false;
         }
 
+        if (arguments.Has("keep-ampr"))
+        {
+            request.RemoveAmprLeftovers = false;
+        }
+
+        if (arguments.Has("keep-playgo"))
+        {
+            request.RemovePlayGoFiles = false;
+        }
+
+        if (arguments.Has("keep-version-uri"))
+        {
+            request.ClearVersionFileUri = false;
+        }
+
+        if (arguments.Has("keep-attribute3"))
+        {
+            request.ClearPlayGoAttributes = false;
+        }
+
+        if (arguments.Has("strip-dlc-emu") || arguments.Has("no-dlc-emu"))
+        {
+            request.KeepDlcEmu = false;
+        }
+
         if (arguments.Has("no-layout-optimization"))
         {
             request.LayoutOptimization = false;
@@ -561,7 +664,8 @@ internal static class CommandLine
 
                 var answer = Console.ReadLine();
                 return answer != null && !answer.Trim().StartsWith("q", StringComparison.OrdinalIgnoreCase);
-            });
+            },
+            ConflictPrompt(arguments));
 
         renderer.Finish();
 

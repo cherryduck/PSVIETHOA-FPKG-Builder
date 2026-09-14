@@ -71,6 +71,41 @@ public sealed class BuildRequest
     /// <summary>Ép applicationDrmType = "standard" trong lúc tạo gói (tránh game bị khoá trên PS5); tệp nguồn được khôi phục sau đó.</summary>
     public bool ForceStandardDrm { get; set; } = true;
 
+    /// <summary>
+    /// Bỏ tàn dư AMPR emu (ampr_emu.index, fakelib/libSceAmpr.sprx) khỏi gói. Engine luôn bỏ module giả; tệp chỉ mục hiện còn
+    /// sót lại và tác giả thư viện cho biết sẽ bỏ nốt — bỏ sẵn ở đây để gói sạch như gói thật.
+    /// </summary>
+    public bool RemoveAmprLeftovers { get; set; } = true;
+
+    /// <summary>
+    /// Bỏ các tệp sce_sys/playgo* của bản dump khỏi gói để thư viện tự tạo bộ PlayGo khớp với ảnh mới (Drakmor: game không
+    /// khởi chạy kèm lỗi "playgo" trong log là do bộ playgo cũ). Mặc định bật.
+    /// </summary>
+    public bool RemovePlayGoFiles { get; set; } = true;
+
+    /// <summary>
+    /// Giữ bộ giả lập DLC của Drakmor (dlc_emu.ini + module libSceAppContent / libSceNpEntitlementAccess / libSceGameUpdate trong
+    /// fakelib) trong gói. Mặc định bật. Tắt để loại chúng khỏi gói (fakelib trống sau khi dọn cũng bị bỏ) và cài DLC bằng gói riêng.
+    /// </summary>
+    public bool KeepDlcEmu { get; set; } = true;
+
+    /// <summary>
+    /// Đặt <c>versionFileUri</c> trong param.json thành chuỗi rỗng lúc tạo gói: gói tự tạo không cập nhật qua URL phiên bản của
+    /// gói gốc. Mặc định bật; tệp nguồn được khôi phục nguyên vẹn sau khi tạo gói.
+    /// </summary>
+    public bool ClearVersionFileUri { get; set; } = true;
+
+    /// <summary>
+    /// Đặt <c>attribute3</c> trong param.json về 0 lúc tạo gói — bước "xoá cờ PlayGo trong attribute3" của hướng dẫn sửa lỗi
+    /// màn hình đen. Mặc định bật. Lưu ý: tài liệu công khai (psdevwiki) không mô tả bit PlayGo nào trong attribute3, nên cả
+    /// trường được đặt về 0 đúng như thao tác "bỏ tích hết cờ" trong trình sửa param — các cờ đã biết (nhận thông tin
+    /// video-out, Share Library Capture API, HFR, High Framerate Mode, Auto Scaling) cũng tắt theo trong gói.
+    /// </summary>
+    public bool ClearPlayGoAttributes { get; set; } = true;
+
+    /// <summary>Các sửa đổi param.json sẽ áp dụng trong lúc tạo gói.</summary>
+    public Services.ParamJsonPatchOptions ParamPatch => new(ForceStandardDrm, ClearVersionFileUri, ClearPlayGoAttributes);
+
     /// <summary>Cách đọc nguồn (thư mục rời / GP5).</summary>
     public SourceMode SourceMode { get; set; } = SourceMode.Auto;
 

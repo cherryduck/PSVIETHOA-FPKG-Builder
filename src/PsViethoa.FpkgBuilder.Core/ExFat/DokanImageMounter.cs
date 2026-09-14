@@ -184,6 +184,7 @@ public static class DokanImageMounter
         string wrapperName,
         bool hideJunk,
         IReadOnlyDictionary<string, byte[]>? overlays,
+        IReadOnlyCollection<string>? hiddenPaths,
         string? volumeLabel,
         CancellationToken cancellationToken)
     {
@@ -194,7 +195,7 @@ public static class DokanImageMounter
 
         var letter = PickDriveLetter(UsedDriveLetters()) ?? throw new IOException("No free drive letter for the virtual disk.");
         var mountPoint = letter + ":\\";
-        var fileSystem = new ExFatVirtualFileSystem(image, appRoot, wrapperName, hideJunk, overlays, volumeLabel);
+        var fileSystem = new ExFatVirtualFileSystem(image, appRoot, wrapperName, hideJunk, overlays, volumeLabel, hiddenPaths);
 
         Dokan? dokan = null;
         DokanInstance? instance = null;

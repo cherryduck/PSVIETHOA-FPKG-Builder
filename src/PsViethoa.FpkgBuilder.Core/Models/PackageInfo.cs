@@ -160,6 +160,9 @@ public sealed class PackageInfo
 
     public string? ContentId => Cnt?.ContentId ?? Params?.ContentId;
 
+    /// <summary>Gói DLC "chỉ quyền sở hữu" (content type 0x22): không có ảnh trong là đúng thiết kế, vẫn cài được.</summary>
+    public bool IsDlcWithoutData => Cnt?.ContentType == 0x22;
+
     public string? Title => Params?.Title;
 
     /// <summary>Chỉ ảnh FIH debug mới giải nén được.</summary>
@@ -171,7 +174,7 @@ public sealed class PackageInfo
     {
         PackageContainerKind.FullDebug => Loc.T("Container.FullDebug"),
         PackageContainerKind.FullRetail => Loc.T("Container.FullRetail"),
-        PackageContainerKind.Meta => Loc.T("Container.Meta"),
+        PackageContainerKind.Meta => IsDlcWithoutData ? Loc.T("Container.DlcNoData") : Loc.T("Container.Meta"),
         _ => Loc.T("Extract.KindUnknown"),
     };
 

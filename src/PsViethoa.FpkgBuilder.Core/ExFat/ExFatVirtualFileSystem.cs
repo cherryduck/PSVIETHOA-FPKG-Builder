@@ -33,6 +33,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
     private readonly string? _wrapper;
     private readonly bool _hideJunk;
     private readonly Dictionary<string, byte[]> _overlays;
+    private readonly HashSet<string> _hidden;
     private readonly ConcurrentDictionary<string, Listing> _listings = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, Node?> _nodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Node _root;
@@ -46,13 +47,15 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
     /// <param name="hideJunk">Ẩn tệp/thư mục rác hệ điều hành (.DS_Store, ._*, Thumbs.db…).</param>
     /// <param name="overlays">Tệp đè: khoá là đường dẫn tương đối so với thư mục ứng dụng ("sce_sys/param.json"), giá trị là nội dung.</param>
     /// <param name="volumeLabel">Nhãn ổ ảo.</param>
+    /// <param name="hiddenPaths">Đường dẫn (tương đối thư mục ứng dụng) bị ẩn hẳn khỏi ổ ảo, ví dụ tàn dư AMPR emu.</param>
     public ExFatVirtualFileSystem(
         ExFatImage image,
         ExFatEntry appRoot,
         string? wrapperName,
         bool hideJunk,
         IReadOnlyDictionary<string, byte[]>? overlays,
-        string? volumeLabel)
+        string? volumeLabel,
+        IReadOnlyCollection<string>? hiddenPaths = null)
     {
         _image = image;
         _appRoot = appRoot;
@@ -67,6 +70,19 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
                 if (normalized.Length > 0)
                 {
                     _overlays[normalized] = bytes;
+                }
+            }
+        }
+
+        _hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (hiddenPaths != null)
+        {
+            foreach (var path in hiddenPaths)
+            {
+                var normalized = NormalizePath(path);
+                if (normalized.Length > 0)
+                {
+                    _hidden.Add(normalized);
                 }
             }
         }
@@ -217,6 +233,11 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
         foreach (var child in _image.Enumerate(directory.Entry))
         {
             if (_hideJunk && (child.IsDirectory ? JunkFileFinder.IsJunkDirectoryName(child.Name) : JunkFileFinder.IsJunkFileName(child.Name)))
+            {
+                continue;
+            }
+
+            if (_hidden.Count > 0 && _hidden.Contains(Join(appRelative, child.Name)))
             {
                 continue;
             }

@@ -39,6 +39,12 @@ public sealed class SourceMetadata
     /// <summary>Passcode 32 ký tự ghi trong dự án GP5 (null nếu không có hoặc sai độ dài).</summary>
     public string? Gp5Passcode { get; set; }
 
+    /// <summary>Dấu vết AMPR emu trong nguồn (module giả, tệp chỉ mục, eboot có gọi libSceAmpr).</summary>
+    public Services.AmprInfo Ampr { get; set; } = Services.AmprInfo.Empty;
+
+    /// <summary>Dấu vết DLC emu (dlc_emu.ini + module thay thế trong fakelib).</summary>
+    public Services.DlcEmuInfo DlcEmu { get; set; } = Services.DlcEmuInfo.Empty;
+
     public bool HasParamJson { get; set; }
 
     public string? ParamJsonPath { get; set; }

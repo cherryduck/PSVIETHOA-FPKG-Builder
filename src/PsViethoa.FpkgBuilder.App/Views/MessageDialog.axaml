@@ -20,6 +20,7 @@
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                 <Button Name="CancelButton" MinWidth="110" Click="Cancel_Click" />
+                <Button Name="AltButton" MinWidth="110" Click="Alt_Click" IsVisible="False" />
                 <Button Name="ConfirmButton" MinWidth="110" Click="Confirm_Click" />
             </StackPanel>
         </StackPanel>

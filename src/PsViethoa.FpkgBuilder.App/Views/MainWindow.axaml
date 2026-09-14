@@ -276,6 +276,22 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Phát hiện bộ giả lập DLC: mời tạo gói DLC riêng (bộ giả lập vẫn được giữ trong gói theo mặc định) -->
+                                <Border Classes="banner warning" IsVisible="{Binding HasDlcEmuWarning}">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <PathIcon Classes="warning" Data="{StaticResource IconPackageDown}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                        <StackPanel Grid.Column="1" Spacing="8">
+                                            <TextBlock Classes="small" Text="{l:T Dlc.Title}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <Button Classes="ghost" HorizontalAlignment="Left" IsVisible="{Binding CanBuildDlc}" IsEnabled="{Binding !IsBuildingDlc}" Command="{Binding BuildDlcPackagesCommand}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconPackageDown}" />
+                                                    <TextBlock Text="{Binding DlcBuildLabel}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
                                 <!-- Tệp rác -->
                                 <Border Classes="banner warning" IsVisible="{Binding HasJunk}">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
@@ -595,11 +611,61 @@
                                         </StackPanel>
                                     </Grid>
 
+                                    <!-- Sửa lỗi PlayGo: ba bước của hướng dẫn (bỏ playgo* nằm cạnh nút Tạo gói) -->
+                                    <Border Classes="banner" Background="Transparent" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                                        <StackPanel Spacing="10">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Classes="small" Text="{l:T Advanced.PlayGoFixTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.PlayGoFixHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.ForceDrm}" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.ForceDrmHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding RemovePlayGoFiles, Mode=TwoWay}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.RemovePlayGo}" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.RemovePlayGoHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding ClearVersionFileUri, Mode=TwoWay}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.ClearVersionUri}" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.ClearVersionUriHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding ClearPlayGoAttributes, Mode=TwoWay}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.ClearAttribute3}" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.ClearAttribute3Hint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                        </StackPanel>
+                                    </Border>
+
                                     <Grid ColumnDefinitions="Auto,12,*">
-                                        <ToggleSwitch IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" VerticalAlignment="Top" />
+                                        <ToggleSwitch IsChecked="{Binding KeepDlcEmu, Mode=TwoWay}" VerticalAlignment="Center" />
                                         <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{l:T Advanced.ForceDrm}" />
-                                            <TextBlock Classes="xs muted" Text="{l:T Advanced.ForceDrmHint}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{l:T Advanced.KeepDlcEmu}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="Auto,12,*">
+                                        <ToggleSwitch IsChecked="{Binding RemoveAmprLeftovers, Mode=TwoWay}" VerticalAlignment="Top" />
+                                        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{l:T Advanced.RemoveAmpr}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Advanced.RemoveAmprHint}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Grid>
 
@@ -751,6 +817,20 @@
                                     </Button>
                                 </Grid>
                             </Border>
+
+                            <!-- Hai sửa lỗi nhanh của Drakmor ngay cạnh nút tạo gói (được lưu cùng cấu hình) + khôi phục mọi tuỳ chọn về mặc định -->
+                            <Grid ColumnDefinitions="*,12,Auto">
+                                <WrapPanel VerticalAlignment="Center">
+                                    <CheckBox IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" Content="{l:T Build.ForceDrm}" FontSize="12.5" MinHeight="0" Margin="0,0,16,0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.ForceDrmHint}" />
+                                    <CheckBox IsChecked="{Binding RemovePlayGoFiles, Mode=TwoWay}" Content="{l:T Build.RemovePlayGo}" FontSize="12.5" MinHeight="0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.RemovePlayGoHint}" />
+                                </WrapPanel>
+                                <Button Grid.Column="2" Classes="link" Padding="0" VerticalAlignment="Center" Command="{Binding ResetSettingsCommand}" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Build.ResetDefaultsTip}">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <PathIcon Classes="sm" Data="{StaticResource IconRefresh}" Width="12" Height="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{l:T Build.ResetDefaults}" FontSize="12.5" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
 
                             <Grid ColumnDefinitions="*,10,Auto">
                                 <Button Name="BuildButton" Classes="primary" Command="{Binding BuildCommand}" IsVisible="{Binding !IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="{l:T Build.ButtonTip}">

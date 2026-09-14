@@ -96,6 +96,22 @@ public sealed class AppSettings
     /// <summary>Tự kiểm tra bản mới trên GitHub Releases khi khởi động (tối đa một lần mỗi 6 giờ).</summary>
     public bool CheckUpdatesOnStartup { get; set; } = true;
 
+    /// <summary>Bỏ sce_sys/playgo* của bản dump khỏi gói để thư viện tạo bộ PlayGo mới (mặc định bật).</summary>
+    public bool RemovePlayGoFiles { get; set; } = true;
+
+    /// <summary>Giữ bộ giả lập DLC (dlc_emu.ini + module fakelib) trong gói (mặc định bật); tắt = dọn khỏi gói.</summary>
+    public bool KeepDlcEmu { get; set; } = true;
+
+    /// <summary>Xoá versionFileUri trong param.json khi tạo gói (mặc định bật).</summary>
+    public bool ClearVersionFileUri { get; set; } = true;
+
+    /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (mặc định bật, theo hướng dẫn sửa lỗi PlayGo).</summary>
+    public bool ClearPlayGoAttributes { get; set; } = true;
+
+
+    /// <summary>Dọn tàn dư AMPR emu (ampr_emu.index) khỏi gói.</summary>
+    public bool RemoveAmprLeftovers { get; set; } = true;
+
     /// <summary>Đã hỏi "cài Dokan để gắn ảnh trực tiếp?" một lần rồi (Windows) — không hỏi lại.</summary>
     public bool DokanPromptShown { get; set; }
 

@@ -46,6 +46,8 @@ public static class MetadataReader
         metadata.HasPlayGoHashTable = File.Exists(Path.Combine(sceSys, "playgo-hash-table.dat"));
         metadata.HasPlayGoFicm = File.Exists(Path.Combine(sceSys, "playgo-ficm.dat"));
         metadata.HasPlayGoScenario = File.Exists(Path.Combine(sceSys, "playgo-scenario.json"));
+        metadata.Ampr = AmprInspector.ScanFolder(sourceFolder, cancellationToken);
+        metadata.DlcEmu = DlcEmuInspector.ScanFolder(sourceFolder, cancellationToken);
         return metadata;
     }
 
@@ -110,6 +112,8 @@ public static class MetadataReader
         metadata.HasPlayGoHashTable = system.ContainsKey("playgo-hash-table.dat");
         metadata.HasPlayGoFicm = system.ContainsKey("playgo-ficm.dat");
         metadata.HasPlayGoScenario = system.ContainsKey("playgo-scenario.json");
+        metadata.Ampr = AmprInspector.ScanImage(image, appRoot, cancellationToken);
+        metadata.DlcEmu = DlcEmuInspector.ScanImage(image, appRoot, cancellationToken);
         return metadata;
     }
 
@@ -234,8 +238,13 @@ public static class MetadataReader
     }
 
     /// <summary>Mô tả trạng thái PlayGo.</summary>
-    public static string DescribePlayGo(SourceMetadata metadata, int chunkCount)
+    public static string DescribePlayGo(SourceMetadata metadata, int chunkCount, bool regenerate = false)
     {
+        if (regenerate && metadata.PlayGoFileCount > 0)
+        {
+            return Loc.F("PlayGo.Regenerate", metadata.PlayGoFileCount, chunkCount);
+        }
+
         var text = metadata.PlayGoFileCount == 0
             ? Loc.F("PlayGo.Auto", chunkCount)
             : metadata.HasCompletePlayGo

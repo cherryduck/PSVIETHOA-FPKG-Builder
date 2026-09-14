@@ -36,7 +36,8 @@ public sealed class BuildEngine
         Action<LogEntry> log,
         IProgress<BuildProgress>? progress,
         CancellationToken cancellationToken,
-        Func<string, bool>? diskFullRetry = null)
+        Func<string, bool>? diskFullRetry = null,
+        Func<IReadOnlyList<string>, OutputConflictChoice>? onOutputConflict = null)
     {
         var normalized = BuildPreparer.Normalize(request);
         var errors = BuildPreparer.Validate(normalized);
@@ -52,6 +53,12 @@ public sealed class BuildEngine
 
         Directory.CreateDirectory(normalized.OutputFolder);
         Directory.CreateDirectory(normalized.TemporaryFolder);
+
+        // Thư viện luôn ghi đè tệp trùng tên — hỏi trước để người dùng giữ được bản cũ.
+        // Chạy trên luồng nền: người gọi chờ đồng bộ hộp thoại trên luồng giao diện, nếu chỗ này đang ở luồng giao diện
+        // thì hai bên chờ nhau và ứng dụng treo cứng.
+        await Task.Run(() => ResolveOutputConflict(normalized.OutputFolder, normalized.ContentId, onOutputConflict, log, cancellationToken), cancellationToken)
+            .ConfigureAwait(false);
 
         var backend = BuildPreparer.ResolveBackend(normalized, out var publishingToolsPath);
         var strategy = source.IsExFat
@@ -84,8 +91,9 @@ public sealed class BuildEngine
                     try
                     {
                         // Ổ ảo Dokan đè được tệp: ép DRM ngay trên ổ ảo, ảnh gốc không bị đụng. hdiutil thì DecideStrategy đã chuyển sang giải nén.
-                        var overlays = normalized.ForceStandardDrm && ImageMounter.CanOverlayFiles ? BuildDrmOverlay(source, log) : null;
-                        var mountRequest = new ImageMountRequest(HideJunk: true, overlays);
+                        var overlays = ImageMounter.CanOverlayFiles ? BuildParamOverlay(normalized, source, log) : null;
+                        var hidden = ImageCleanupPaths(normalized, source, log);
+                        var mountRequest = new ImageMountRequest(HideJunk: true, overlays, hidden);
                         mount = await Task.Run(() => ImageMounter.Mount(source, mountRequest, cancellationToken), cancellationToken).ConfigureAwait(false);
                         sourceFolder = mount.SourceFolder;
                         log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountedVia", mount.MountPoint, ImageMounter.BackendLabel)));
@@ -105,7 +113,7 @@ public sealed class BuildEngine
 
                 if (strategy == ExFatStrategy.Extract)
                 {
-                    staging = Path.Combine(normalized.TemporaryFolder, "exfat-" + StagingName(source.Path));
+                    staging = Path.Combine(normalized.TemporaryFolder, "exfat-" + StagingName(source.Path) + "-" + Environment.ProcessId.ToString("x"));
                     TryDeleteDirectory(staging);
                     var extractionWatch = Stopwatch.StartNew();
                     var plan = await Task.Run(() =>
@@ -130,11 +138,37 @@ public sealed class BuildEngine
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+
+            // Bỏ tệp khỏi gói (playgo*, tàn dư AMPR emu, bộ giả lập DLC khi được chọn) và sửa param.json — làm trên một thư mục
+            // gương trong thư mục tạm, KHÔNG bao giờ chạm vào thư mục nguồn, ảnh hay tệp .gp5 của người dùng. Ổ ảo khi gắn ảnh
+            // đã ẩn và đè sẵn nên không cần gương.
+            var mirrorRequired = false;
+            using var mirror = mount == null
+                ? BuildSourceMirror(normalized, source, project, sourceFolder, log, out mirrorRequired)
+                : null;
+            if (mirror != null)
+            {
+                sourceFolder = mirror.Path;
+            }
+            else if (mirrorRequired)
+            {
+                // Không dựng được gương mà vẫn phải bỏ/sửa tệp: dừng hẳn. Tạo tiếp sẽ cho ra gói còn nguyên bộ playgo*
+                // trong khi nhật ký đã báo là đã bỏ — người dùng không có cách nào biết gói bị hỏng.
+                throw new BuildValidationException([new ValidationError(BuildPreparer.FieldSource, Loc.T("Val.MirrorRequired"))]);
+            }
+
             var options = CreateOptions(normalized, sourceFolder, backend, publishingToolsPath, cancellationToken);
 
-            // Ép DRM "standard" ngay trên param.json mà thư viện sẽ đọc (thư mục nguồn, thư mục trích tạm hoặc rootdir của dự án GP5),
-            // rồi khôi phục nguyên vẹn khi xong. Ảnh gắn chỉ đọc đã được DecideStrategy chuyển sang giải nén từ trước.
-            using var drmSwap = normalized.ForceStandardDrm ? TryForceStandardDrm(ParamJsonPathFor(source, project, sourceFolder), log) : null;
+            // Dự án GP5: thư viện đọc danh sách tệp từ chính tệp .gp5, nên bản sửa được ghi ra một tệp .gp5 mới trong thư mục tạm
+            // (tệp của người dùng chỉ được đọc) và thư viện được trỏ sang bản đó.
+            using var gp5Project = source.IsGp5
+                ? Gp5ProjectRedirect.Create(normalized, source, project?.RootFolder, mirror?.Path, log)
+                : null;
+            if (gp5Project != null)
+            {
+                options.ProjectFilePath = gp5Project.Path;
+                options.SourceFolder = System.IO.Path.GetDirectoryName(gp5Project.Path)!;
+            }
 
             // Đĩa đầy giữa chừng: thư viện 0.6.5 cho phép tạm dừng, chờ người dùng giải phóng dung lượng rồi thử lại thay vì huỷ.
             using var diskRecovery = diskFullRetry != null
@@ -203,34 +237,260 @@ public sealed class BuildEngine
         }
     }
 
-    /// <summary>param.json mà thư viện sẽ đọc: rootdir của dự án GP5, hoặc &lt;thư mục nguồn thực tế&gt;/sce_sys/param.json.</summary>
-    private static string ParamJsonPathFor(SourceInfo source, Gp5ProjectInfo? project, string sourceFolder) =>
-        source.IsGp5 && project?.ParamJsonPath != null ? project.ParamJsonPath : Path.Combine(sourceFolder, "sce_sys", "param.json");
-
-    private static ParamJsonDrmSwap? TryForceStandardDrm(string paramJsonPath, Action<LogEntry> log)
+    /// <summary>Gói cùng Content ID đã có trong thư mục xuất: hỏi ghi đè / giữ bản cũ / huỷ.</summary>
+    internal static void ResolveOutputConflict(string outputFolder, string contentId, Func<IReadOnlyList<string>, OutputConflictChoice>? ask, Action<LogEntry> log, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(paramJsonPath))
+        if (ask == null)
         {
-            return null;
+            return;
         }
 
-        try
+        var existing = OutputConflict.Find(outputFolder, contentId);
+        if (existing.Count == 0)
         {
-            return ParamJsonDrmSwap.Apply(paramJsonPath, log);
+            return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+
+        var choice = ask(existing);
+        if (!OutputConflict.Apply(existing, choice, (from, to) =>
+                log(new LogEntry(LogLevel.Info, Loc.F("Plan.OutputKept", Path.GetFileName(from), to == null ? "—" : Path.GetFileName(to))))))
         {
-            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DrmForceFailed", ex.Message)));
-            return null;
+            log(new LogEntry(LogLevel.Warning, Loc.T("Build.UserCanceled")));
+            throw new OperationCanceledException(Loc.T("Build.UserCanceled"));
+        }
+
+        if (choice == OutputConflictChoice.Overwrite)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.OutputOverwrite", string.Join(", ", existing.Select(Path.GetFileName)))));
         }
     }
 
-    /// <summary>Ảnh exFAT có param.json cần ép DRM không — khi gắn chỉ đọc (hdiutil) thì không sửa được, phải giải nén.</summary>
-    private static bool ImageNeedsDrmRewrite(SourceInfo source)
+    /// <summary>Thư mục giả lập sẽ bị bỏ khỏi gói nếu dọn xong không còn tệp nào (fakelib rỗng vẫn có thể làm bộ nạp PS5 rẽ nhánh).</summary>
+    private static readonly string[] EmuFolders = { "fakelib", "fakelib2" };
+
+    private static readonly HashSet<string> DlcEmuSet = new(DlcEmuInspector.Candidates(), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Dựng thư mục gương cho lượt tạo gói: bỏ những tệp không được vào gói và thay param.json bằng bản đã sửa, tất cả nằm trong
+    /// thư mục tạm. Thư mục nguồn của người dùng chỉ được đọc. Trả về null khi không phải bỏ hay sửa gì.
+    /// </summary>
+    private static SourceMirror? BuildSourceMirror(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, string sourceFolder, Action<LogEntry> log, out bool required)
+    {
+        required = false;
+        // Dự án GP5: thư mục ứng dụng thật nằm ở rootdir của dự án, không phải thư mục chứa tệp .gp5.
+        var appFolder = source.IsGp5 ? project?.RootFolder : sourceFolder;
+        if (appFolder == null || !Directory.Exists(appFolder))
+        {
+            return null;
+        }
+
+        var skip = FolderCleanupPaths(request, appFolder).ToList();
+        var replace = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var paramJson = System.IO.Path.Combine(appFolder, "sce_sys", "param.json");
+        if (request.ParamPatch.Any && File.Exists(paramJson))
+        {
+            try
+            {
+                if (ParamJsonPatch.Rewrite(File.ReadAllBytes(paramJson), request.ParamPatch, out var changes) is { } patched)
+                {
+                    replace["sce_sys/param.json"] = patched;
+                    foreach (var change in changes)
+                    {
+                        log(new LogEntry(LogLevel.Info, change));
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.ParamPatchFailed", ex.Message)));
+            }
+        }
+
+        if (request.KeepDlcEmu && File.Exists(System.IO.Path.Combine(appFolder, DlcEmuInspector.ConfigName)))
+        {
+            log(new LogEntry(LogLevel.Info, Loc.T("Plan.DlcEmuKept")));
+        }
+
+        // Thư viện tự ghi vào thư mục nó đọc trong hai trường hợp: sinh sce_sys/param.json khi thiếu, và ghi
+        // sce_sys/pfs-region-hints.json khi bật phân tích shuffle. Cả hai đều phải xảy ra trong gương, không phải trong nguồn.
+        var libraryWrites = !File.Exists(paramJson)
+                            || (request.PfsFormat == PfsFormat.V3 && request.ShuffleAnalysis);
+        // sce_sys luôn là bản sao thật: thư viện tự ghi vào đó (param.json thiếu, gợi ý vùng nén), mà liên kết thì ghi
+        // xuyên thẳng vào thư mục nguồn. Thư mục này nhỏ nên sao chép không đáng kể.
+        var plan = new MirrorPlan(skip, replace, new Dictionary<string, string>(), new[] { "sce_sys" });
+        if (!plan.Any && !libraryWrites)
+        {
+            return null;
+        }
+
+        required = true;
+        if (!plan.Any)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.T("Plan.MirrorForWrites")));
+        }
+
+        LogCleanup(skip, Array.Empty<string>(), log);
+        return SourceMirror.Create(appFolder, request.TemporaryFolder, plan, log, force: true);
+    }
+
+    private static void LogCleanup(IReadOnlyCollection<string> hidden, IReadOnlyCollection<string> emptyFolders, Action<LogEntry> log)
+    {
+        var playgo = hidden.Where(PlayGoCleanup.IsCandidate).ToList();
+        var dlc = hidden.Where(DlcEmuSet.Contains).ToList();
+        var ampr = hidden.Except(playgo, StringComparer.OrdinalIgnoreCase).Except(dlc, StringComparer.OrdinalIgnoreCase).ToList();
+        if (ampr.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.AmprRemoved", string.Join(", ", ampr))));
+        }
+
+        if (playgo.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.PlayGoRemoved", PlayGoCleanup.Describe(playgo))));
+        }
+
+        if (dlc.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DlcEmuRemoved", string.Join(", ", dlc))));
+        }
+
+        if (emptyFolders.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.EmptyFolderDropped", string.Join(", ", emptyFolders))));
+        }
+    }
+
+    /// <summary>Các đường dẫn cần bỏ mà không cần đọc thư mục nguồn (tên cố định của AMPR emu và DLC emu).</summary>
+    private static IReadOnlyList<string> StaticCleanupPaths(BuildRequest request)
+    {
+        var paths = new List<string>();
+        if (request.RemoveAmprLeftovers)
+        {
+            paths.AddRange(AmprInspector.LeftoverCandidates());
+        }
+
+        if (!request.KeepDlcEmu)
+        {
+            paths.AddRange(DlcEmuInspector.Candidates());
+        }
+
+        return paths;
+    }
+
+    /// <summary>Các tệp cần bỏ khỏi gói, tính theo những gì thật sự có trong thư mục ứng dụng.</summary>
+    private static IReadOnlyList<string> FolderCleanupPaths(BuildRequest request, string appFolder)
+    {
+        var paths = new List<string>();
+        if (request.RemoveAmprLeftovers)
+        {
+            paths.AddRange(AmprInspector.LeftoverCandidates());
+        }
+
+        if (request.RemovePlayGoFiles)
+        {
+            paths.AddRange(PlayGoCleanup.ListFolder(appFolder));
+        }
+
+        if (!request.KeepDlcEmu)
+        {
+            paths.AddRange(DlcEmuInspector.Candidates());
+        }
+
+        return paths
+            .Where(relative => File.Exists(System.IO.Path.Combine(appFolder, relative.Replace('/', System.IO.Path.DirectorySeparatorChar))))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Các đường dẫn cần ẩn trên ổ ảo khi gắn ảnh: đọc tên thật trong ảnh để ghi nhật ký chính xác; nếu mọi tệp trong
+    /// fakelib/fakelib2 đều bị ẩn thì ẩn luôn cả thư mục để gói không mang một thư mục fakelib rỗng.
+    /// </summary>
+    private static string[]? ImageCleanupPaths(BuildRequest request, SourceInfo source, Action<LogEntry> log) =>
+        ImageCleanupPaths(request, source, log, out _);
+
+    /// <summary>Ảnh có tệp nào thật sự cần bỏ khỏi gói không (quyết định gắn hay giải nén khi ổ gắn không ẩn được tệp).</summary>
+    private static bool HasImageCleanupFiles(BuildRequest request, SourceInfo source)
+    {
+        ImageCleanupPaths(request, source, _ => { }, out var anyPresent);
+        return anyPresent;
+    }
+
+    /// <summary>
+    /// Như trên, kèm <paramref name="anyPresent"/> cho biết ảnh có THẬT SỰ chứa tệp nào cần bỏ không. Danh sách trả về gồm cả
+    /// tên tĩnh chưa chắc có trong ảnh (ẩn thừa một tên là vô hại), nên không dùng nó để quyết định gắn hay giải nén được.
+    /// </summary>
+    private static string[]? ImageCleanupPaths(BuildRequest request, SourceInfo source, Action<LogEntry> log, out bool anyPresent)
+    {
+        var paths = new List<string>();
+        var present = new List<string>();
+        var emptyFolders = new List<string>();
+        try
+        {
+            using var image = ExFatImage.Open(source.Path);
+            var appRoot = SourceLocator.ResolveAppRoot(image, source);
+            var staticCandidates = StaticCleanupPaths(request).ToList();
+            foreach (var candidate in staticCandidates)
+            {
+                paths.Add(candidate);
+                if (image.Find(candidate, appRoot) is { IsDirectory: false })
+                {
+                    present.Add(candidate);
+                }
+            }
+
+            if (request.RemovePlayGoFiles)
+            {
+                var playgo = PlayGoCleanup.ListImage(image, appRoot);
+                paths.AddRange(playgo);
+                present.AddRange(playgo);
+            }
+
+            var removed = new HashSet<string>(present, StringComparer.OrdinalIgnoreCase);
+            foreach (var folder in EmuFolders)
+            {
+                var entry = image.Find(folder, appRoot);
+                if (entry is not { IsDirectory: true })
+                {
+                    continue;
+                }
+
+                var children = image.Enumerate(entry).ToList();
+                if (children.Count > 0 && children.All(child => !child.IsDirectory && removed.Contains(folder + "/" + child.Name)))
+                {
+                    paths.Add(folder);
+                    emptyFolders.Add(folder);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Không đọc được ảnh ở đây thì vẫn ẩn theo tên tĩnh; playgo* cần tên thật trong ảnh nên bỏ qua.
+            paths.Clear();
+            present.Clear();
+            emptyFolders.Clear();
+            paths.AddRange(StaticCleanupPaths(request));
+        }
+
+        LogCleanup(present, emptyFolders, log);
+        anyPresent = present.Count > 0 || emptyFolders.Count > 0;
+        return paths.Count == 0 ? null : paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    /// <summary>Nội dung sce_sys/param.json bên trong ảnh exFAT (null khi không đọc được).</summary>
+    private static byte[]? ReadImageParamJson(SourceInfo source)
+    {
+        using var image = ExFatImage.Open(source.Path);
+        var appRoot = SourceLocator.ResolveAppRoot(image, source);
+        var paramJson = image.Find("sce_sys/param.json", appRoot);
+        return paramJson is { IsDirectory: false } ? image.ReadAllBytes(paramJson) : null;
+    }
+
+    /// <summary>Ảnh exFAT có param.json cần sửa không — khi gắn chỉ đọc (hdiutil) thì không sửa được, phải giải nén.</summary>
+    private static bool ImageNeedsParamPatch(BuildRequest request, SourceInfo source)
     {
         try
         {
-            return ParamJsonDrmSwap.NeedsRewrite(MetadataReader.Read(source.Path, CancellationToken.None).ApplicationDrmType);
+            return ReadImageParamJson(source) is { } paramJson && ParamJsonPatch.NeedsRewrite(paramJson, request.ParamPatch);
         }
         catch (Exception)
         {
@@ -239,33 +499,35 @@ public sealed class BuildEngine
     }
 
     /// <summary>
-    /// Bản param.json đã ép DRM "standard" để đè lên ổ ảo (Dokan) — ảnh gốc không bị đụng. Trả về null khi không cần đổi
-    /// (thiếu tệp hoặc đã là "standard"); lỗi đọc chỉ ghi cảnh báo và không chặn việc gắn.
+    /// Bản param.json đã sửa để đè lên ổ ảo (Dokan) — ảnh gốc không bị đụng. Trả về null khi không cần đổi (thiếu tệp hoặc
+    /// mọi giá trị đã đúng); lỗi đọc chỉ ghi cảnh báo và không chặn việc gắn.
     /// </summary>
-    private static IReadOnlyDictionary<string, byte[]>? BuildDrmOverlay(SourceInfo source, Action<LogEntry> log)
+    private static IReadOnlyDictionary<string, byte[]>? BuildParamOverlay(BuildRequest request, SourceInfo source, Action<LogEntry> log)
     {
+        if (!request.ParamPatch.Any)
+        {
+            return null;
+        }
+
         try
         {
-            using var image = ExFatImage.Open(source.Path);
-            var appRoot = SourceLocator.ResolveAppRoot(image, source);
-            var paramJson = image.Find("sce_sys/param.json", appRoot);
-            if (paramJson == null || paramJson.IsDirectory)
+            if (ReadImageParamJson(source) is not { } paramJson)
             {
                 return null;
             }
 
-            var rewritten = ParamJsonDrmSwap.Rewrite(image.ReadAllBytes(paramJson), out var previous);
+            var rewritten = ParamJsonPatch.Rewrite(paramJson, request.ParamPatch, out var changes);
             if (rewritten == null)
             {
                 return null;
             }
 
-            log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountDrmOverlay", previous!, ParamJsonDrmSwap.StandardDrm)));
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountParamOverlay", string.Join(" · ", changes))));
             return new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase) { ["sce_sys/param.json"] = rewritten };
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException)
         {
-            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DrmForceFailed", ex.Message)));
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.ParamPatchFailed", ex.Message)));
             return null;
         }
     }
@@ -297,10 +559,18 @@ public sealed class BuildEngine
             return ExFatStrategy.Extract;
         }
 
-        if (request.ForceStandardDrm && !ImageMounter.CanOverlayFiles && ImageNeedsDrmRewrite(source))
+        if (!ImageMounter.CanOverlayFiles && ImageNeedsParamPatch(request, source))
         {
-            // param.json trong ảnh mang DRM khác "standard": ảnh gắn hdiutil là chỉ đọc nên phải giải nén để ép DRM.
+            // param.json trong ảnh cần sửa (DRM, versionFileUri, attribute3): ảnh gắn hdiutil là chỉ đọc nên phải giải nén.
             log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountDrm")));
+            return ExFatStrategy.Extract;
+        }
+
+        // Ổ gắn chỉ đọc (hdiutil) không ẩn được tệp: có gì phải bỏ khỏi gói thì phải giải nén mới làm được. Kiểm tra này
+        // phải đứng TRƯỚC lựa chọn "Gắn ảnh" của người dùng, nếu không gói sẽ còn nguyên playgo* mà nhật ký lại báo đã bỏ.
+        if (!ImageMounter.CanHideJunk && HasImageCleanupFiles(request, source))
+        {
+            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountCleanup")));
             return ExFatStrategy.Extract;
         }
 
@@ -431,6 +701,16 @@ public sealed class BuildEngine
 
         log(new LogEntry(LogLevel.Info, DescribeCompressionProfile(request)));
         log(new LogEntry(LogLevel.Info, Loc.T(request.ForceStandardDrm ? "Plan.DrmPolicyOn" : "Plan.DrmPolicyOff")));
+        if (request.ClearVersionFileUri)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.T("Plan.VersionUriPolicy")));
+        }
+
+        if (request.ClearPlayGoAttributes)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.T("Plan.Attribute3Policy")));
+        }
+
         if (request.PfsFormat == PfsFormat.V3)
         {
             // Theo tác giả thư viện: PFS v3 cần firmware PS5 7.00+, tối ưu shuffle chỉ phát huy đầy đủ ở Kraken mức 9.

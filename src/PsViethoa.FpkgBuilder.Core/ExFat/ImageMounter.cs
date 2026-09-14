@@ -15,7 +15,7 @@ public enum MountBackend
 }
 
 /// <summary>Yêu cầu khi gắn: ẩn tệp rác hệ điều hành và/hoặc đè tệp bằng dữ liệu trong bộ nhớ (chỉ ổ ảo Dokan làm được).</summary>
-public sealed record ImageMountRequest(bool HideJunk = true, IReadOnlyDictionary<string, byte[]>? Overlays = null);
+public sealed record ImageMountRequest(bool HideJunk = true, IReadOnlyDictionary<string, byte[]>? Overlays = null, IReadOnlyCollection<string>? HiddenPaths = null);
 
 /// <summary>Ảnh đã gắn: điểm gắn, thư mục ứng dụng bên trong và backend đã dùng. Dispose để tháo.</summary>
 public sealed class ImageMount : IDisposable
@@ -132,7 +132,7 @@ public static class ImageMounter
                 {
                     var appRoot = SourceLocator.ResolveAppRoot(image, source);
                     var wrapper = WrapperNameFor(source);
-                    var mount = DokanImageMounter.Mount(image, appRoot, wrapper, request.HideJunk, request.Overlays, image.VolumeLabel ?? wrapper, cancellationToken);
+                    var mount = DokanImageMounter.Mount(image, appRoot, wrapper, request.HideJunk, request.Overlays, request.HiddenPaths, image.VolumeLabel ?? wrapper, cancellationToken);
                     return new ImageMount(mount.MountPoint, mount.SourceFolder, MountBackend.Dokan, mount);
                 }
                 catch

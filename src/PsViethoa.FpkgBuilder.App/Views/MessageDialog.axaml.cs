@@ -76,21 +76,55 @@ public partial class MessageDialog : Window
             dialog.ConfirmButton.FontSize = 14;
         }
 
-        var result = await dialog.ShowDialog<bool?>(owner);
+        var result = await dialog.ShowDialog<int?>(owner);
         Services.DebugLog.Write($"MessageDialog result: {result?.ToString() ?? "null"}");
-        return result == true;
+        return result == ConfirmResult;
+    }
+
+    public const int ConfirmResult = 0;
+    public const int AltResult = 1;
+    public const int CancelResult = 2;
+
+    /// <summary>Hộp thoại ba lựa chọn (ví dụ: ghi đè / giữ bản cũ / huỷ). Trả về mã ConfirmResult, AltResult hoặc CancelResult.</summary>
+    public static async Task<int> ShowChoiceAsync(Window owner, string title, string message, string confirmLabel, string altLabel, string cancelLabel)
+    {
+        var dialog = new MessageDialog { Title = title };
+        dialog.TitleText.Text = title;
+        dialog.MessageText.Text = message;
+        dialog.ConfirmButton.Content = confirmLabel;
+        dialog.ConfirmButton.Classes.Add("primary");
+        dialog.ConfirmButton.MinHeight = 36;
+        dialog.ConfirmButton.FontSize = 14;
+        dialog.AltButton.Content = altLabel;
+        dialog.AltButton.IsVisible = true;
+        dialog.CancelButton.Content = cancelLabel;
+
+        if (Application.Current != null &&
+            Application.Current.TryGetResource("IconHelp", Application.Current.ActualThemeVariant, out var geometry) && geometry is Geometry g)
+        {
+            dialog.KindIcon.Data = g;
+        }
+
+        var result = await dialog.ShowDialog<int?>(owner);
+        return result ?? CancelResult;
     }
 
     private void Confirm_Click(object? sender, RoutedEventArgs e)
     {
         Services.DebugLog.Write("MessageDialog confirm click");
-        Close(true);
+        Close(ConfirmResult);
+    }
+
+    private void Alt_Click(object? sender, RoutedEventArgs e)
+    {
+        Services.DebugLog.Write("MessageDialog alt click");
+        Close(AltResult);
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e)
     {
         Services.DebugLog.Write("MessageDialog cancel click");
-        Close(false);
+        Close(CancelResult);
     }
 
     protected override void OnKeyDown(Avalonia.Input.KeyEventArgs e)
@@ -100,13 +134,13 @@ public partial class MessageDialog : Window
         {
             Services.DebugLog.Write("MessageDialog escape key");
             e.Handled = true;
-            Close(false);
+            Close(CancelResult);
         }
         else if (e.Key == Avalonia.Input.Key.Enter)
         {
             Services.DebugLog.Write("MessageDialog enter key");
             e.Handled = true;
-            Close(true);
+            Close(ConfirmResult);
         }
     }
 }

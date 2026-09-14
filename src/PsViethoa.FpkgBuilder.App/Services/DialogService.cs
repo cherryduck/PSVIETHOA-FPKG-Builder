@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using PsViethoa.FpkgBuilder.App.Views;
+using PsViethoa.FpkgBuilder.Core.Services;
+using PsViethoa.FpkgBuilder.Core.Localization;
 
 namespace PsViethoa.FpkgBuilder.App.Services;
 
@@ -203,13 +205,25 @@ public sealed class DialogService
     }
 
     public Task ShowErrorAsync(string title, string message) =>
-        MessageDialog.ShowAsync(_owner, title, message, MessageDialog.Kind.Error, "Đóng", null);
+        MessageDialog.ShowAsync(_owner, title, message, MessageDialog.Kind.Error, Loc.T("Common.Close"), null);
 
     public Task ShowInfoAsync(string title, string message) =>
-        MessageDialog.ShowAsync(_owner, title, message, MessageDialog.Kind.Info, "Đóng", null);
+        MessageDialog.ShowAsync(_owner, title, message, MessageDialog.Kind.Info, Loc.T("Common.Close"), null);
 
-    public Task<bool> ConfirmAsync(string title, string message, string confirmLabel, string cancelLabel = "Huỷ", bool destructive = false) =>
+    public Task<bool> ConfirmAsync(string title, string message, string confirmLabel, string? cancelLabel = null, bool destructive = false) =>
         MessageDialog.ShowAsync(_owner, title, message, destructive ? MessageDialog.Kind.Danger : MessageDialog.Kind.Question, confirmLabel, cancelLabel);
+
+    /// <summary>Hỏi cách xử lý khi thư mục xuất đã có gói cùng tên: ghi đè, giữ bản cũ (đổi tên nó) hoặc huỷ.</summary>
+    public async Task<OutputConflictChoice> AskOutputConflictAsync(string title, string message, string overwriteLabel, string keepLabel, string cancelLabel)
+    {
+        var result = await MessageDialog.ShowChoiceAsync(_owner, title, message, overwriteLabel, keepLabel, cancelLabel);
+        return result switch
+        {
+            MessageDialog.ConfirmResult => OutputConflictChoice.Overwrite,
+            MessageDialog.AltResult => OutputConflictChoice.KeepExisting,
+            _ => OutputConflictChoice.Cancel,
+        };
+    }
 
     private static async Task<IStorageFolder?> TryGetFolderAsync(IStorageProvider provider, string? path)
     {

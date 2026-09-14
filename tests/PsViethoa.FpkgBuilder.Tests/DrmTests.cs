@@ -40,7 +40,7 @@ public sealed class DrmTests : IDisposable
     [InlineData("free", true)]
     [InlineData("Standard", false)]
     public void NeedsRewrite_OnlyForNonStandardValues(string? value, bool expected) =>
-        Assert.Equal(expected, ParamJsonDrmSwap.NeedsRewrite(value));
+        Assert.Equal(expected, ParamJsonPatch.NeedsDrmRewrite(value));
 
     [Fact]
     public void Swap_RewritesAndRestoresByteForByte()
@@ -48,18 +48,18 @@ public sealed class DrmTests : IDisposable
         var app = MakeSource("swap", "free");
         var param = Path.Combine(app, "sce_sys", "param.json");
         var original = File.ReadAllBytes(param);
-        Assert.Equal("free", ParamJsonDrmSwap.ReadDrmType(param));
-        using (var swap = ParamJsonDrmSwap.Apply(param, null))
+        Assert.Equal("free", ParamJsonPatch.ReadDrmType(param));
+        using (var swap = ParamJsonPatch.Apply(param, ParamJsonPatchOptions.DrmOnly, null))
         {
             Assert.NotNull(swap);
-            Assert.Equal("free", swap!.PreviousValue);
-            Assert.Equal("standard", ParamJsonDrmSwap.ReadDrmType(param));
+            Assert.Single(swap!.Changes);
+            Assert.Equal("standard", ParamJsonPatch.ReadDrmType(param));
             Assert.Equal("UP9000-PPSA00007_00-PSVIETHOADRMTEST", MetadataReader.Read(app, CancellationToken.None).ContentId);
         }
 
         Assert.Equal(original, File.ReadAllBytes(param));
-        Assert.Null(ParamJsonDrmSwap.Apply(Path.Combine(MakeSource("std", "standard"), "sce_sys", "param.json"), null));
-        Assert.Null(ParamJsonDrmSwap.Apply(Path.Combine(MakeSource("none", null), "sce_sys", "param.json"), null));
+        Assert.Null(ParamJsonPatch.Apply(Path.Combine(MakeSource("std", "standard"), "sce_sys", "param.json"), ParamJsonPatchOptions.DrmOnly, null));
+        Assert.Null(ParamJsonPatch.Apply(Path.Combine(MakeSource("none", null), "sce_sys", "param.json"), ParamJsonPatchOptions.DrmOnly, null));
     }
 
     [Theory]
@@ -85,6 +85,8 @@ public sealed class DrmTests : IDisposable
             KrakenBackend = KrakenBackendKind.BuiltIn,
             PreventSleep = false,
             ForceStandardDrm = force,
+            ClearVersionFileUri = false,
+            ClearPlayGoAttributes = false,
         }, log.Add, null, CancellationToken.None);
 
         Assert.Equal(original, File.ReadAllBytes(param)); // tệp nguồn được khôi phục

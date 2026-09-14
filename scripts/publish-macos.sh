@@ -54,9 +54,11 @@ for RID in "${RIDS[@]}"; do
 </plist>
 PLIST
 
+  # Dọn tệp thừa TRƯỚC khi ký: ký xong mới xoá thì chữ ký hỏng vì thiếu tài nguyên đã niêm phong.
+  find "$APP/Contents/MacOS" "$OUT/fpkg-cli" \( -name "*.pdb" -o -name "LibProsperoPkg.xml" \) -delete
+
   # Ký ad-hoc để macOS cho phép chạy (người dùng vẫn cần chuột phải > Mở lần đầu nếu tải qua mạng).
   codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || echo "   (bỏ qua codesign)"
-  find "$APP/Contents/MacOS" "$OUT/fpkg-cli" \( -name "*.pdb" -o -name "LibProsperoPkg.xml" \) -delete
   rm -rf "$OUT/publish-app"
 
   (cd "$OUT" && rm -f "$APP_NAME-$VERSION-$RID.zip" && zip -qry "$APP_NAME-$VERSION-$RID.zip" "$APP_NAME.app" fpkg-cli)

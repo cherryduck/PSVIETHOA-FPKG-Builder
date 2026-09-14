@@ -1,0 +1,100 @@
+namespace PsViethoa.FpkgBuilder.Core.Services;
+
+/// <summary>Xử lý khi thư mục xuất đã có gói cùng tên.</summary>
+public enum OutputConflictChoice
+{
+    /// <summary>Ghi đè lên tệp cũ.</summary>
+    Overwrite,
+
+    /// <summary>Giữ tệp cũ bằng cách đổi tên nó, gói mới ghi vào tên gốc.</summary>
+    KeepExisting,
+
+    /// <summary>Không tạo gói.</summary>
+    Cancel,
+}
+
+/// <summary>
+/// Tìm gói đã có cùng Content ID trong thư mục xuất và giữ lại bản cũ khi người dùng muốn.
+/// Thư viện luôn ghi đè tệp trùng tên, nên phải hỏi và xử lý trước khi gọi nó.
+/// </summary>
+public static class OutputConflict
+{
+    /// <summary>Các tệp .pkg trong thư mục xuất thuộc về Content ID này (tên gói là &lt;contentId&gt;-A….pkg).</summary>
+    public static IReadOnlyList<string> Find(string outputFolder, string contentId)
+    {
+        if (string.IsNullOrWhiteSpace(outputFolder) || string.IsNullOrWhiteSpace(contentId) || !Directory.Exists(outputFolder))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return Directory.EnumerateFiles(outputFolder, "*.pkg", SearchOption.TopDirectoryOnly)
+                .Where(path => Path.GetFileName(path).StartsWith(contentId + "-", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>Đổi tên tệp cũ thành "&lt;tên&gt; (1).pkg" (tăng dần cho tới khi trống). Trả về tên mới, null nếu không đổi được.</summary>
+    public static string? KeepExisting(string path)
+    {
+        var folder = Path.GetDirectoryName(path);
+        var name = Path.GetFileNameWithoutExtension(path);
+        var extension = Path.GetExtension(path);
+        if (folder == null || name.Length == 0)
+        {
+            return null;
+        }
+
+        for (var index = 1; index < 1000; index++)
+        {
+            var candidate = Path.Combine(folder, $"{name} ({index}){extension}");
+            if (File.Exists(candidate))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Move(path, candidate);
+                return candidate;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Áp dụng lựa chọn cho tất cả tệp trùng; trả về false khi người dùng huỷ.</summary>
+    public static bool Apply(IReadOnlyList<string> existing, OutputConflictChoice choice, Action<string, string?>? renamed)
+    {
+        if (choice == OutputConflictChoice.Cancel)
+        {
+            return false;
+        }
+
+        if (choice == OutputConflictChoice.KeepExisting)
+        {
+            foreach (var path in existing)
+            {
+                var target = KeepExisting(path);
+                renamed?.Invoke(path, target);
+                if (target == null)
+                {
+                    // Không đổi tên được bản cũ: dừng hẳn. Tạo tiếp sẽ ghi đè lên đúng tệp người dùng vừa bảo là muốn giữ.
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+}

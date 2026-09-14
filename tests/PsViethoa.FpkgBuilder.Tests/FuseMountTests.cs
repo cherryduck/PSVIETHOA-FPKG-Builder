@@ -44,8 +44,12 @@ public sealed class FuseMountTests : IDisposable
         return target;
     }
 
-    private FuseMount MountFixture(ExFatImage image, IReadOnlyDictionary<string, byte[]>? overlays = null, bool hideJunk = true) =>
-        FuseImageMounter.Mount(image, image.Root, Wrapper, hideJunk, overlays, "FUSETEST", CancellationToken.None);
+    private FuseMount MountFixture(
+        ExFatImage image,
+        IReadOnlyDictionary<string, byte[]>? overlays = null,
+        bool hideJunk = true,
+        IReadOnlyCollection<string>? hiddenPaths = null) =>
+        FuseImageMounter.Mount(image, image.Root, Wrapper, hideJunk, overlays, hiddenPaths, "FUSETEST", CancellationToken.None);
 
     [Fact]
     public void Availability_IsLinuxOnly()
@@ -164,6 +168,29 @@ public sealed class FuseMountTests : IDisposable
 
         Assert.False(IsMounted(mountPoint));
         Assert.False(Directory.Exists(mountPoint));
+    }
+
+    /// <summary>
+    /// Đường dẫn bị ẩn hẳn (tàn dư AMPR emu) phải biến mất khỏi ổ FUSE y như trên ổ ảo Dokan — hai backend dùng
+    /// chung mô hình đọc nên khả năng phải khớp nhau.
+    /// </summary>
+    [Fact]
+    public void Mount_HidesExplicitlyHiddenPaths()
+    {
+        if (!Available)
+        {
+            return;
+        }
+
+        using var image = ExFatImage.Open(Fixture("small-bare.exfat"));
+        using var mount = MountFixture(image, hiddenPaths: new[] { "eboot.bin", "data/random.bin" });
+
+        Assert.False(File.Exists(Path.Combine(mount.SourceFolder, "eboot.bin")));
+        Assert.False(File.Exists(Path.Combine(mount.SourceFolder, "data", "random.bin")));
+
+        // Những tệp khác không bị ảnh hưởng.
+        Assert.True(Directory.Exists(Path.Combine(mount.SourceFolder, "sce_sys")));
+        Assert.True(File.Exists(Path.Combine(mount.SourceFolder, "data", "text.bin")));
     }
 
     private static bool IsMounted(string mountPoint)

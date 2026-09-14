@@ -155,7 +155,7 @@ public static class ImageMounter
                 {
                     var appRoot = SourceLocator.ResolveAppRoot(image, source);
                     var wrapper = WrapperNameFor(source);
-                    var mount = FuseImageMounter.Mount(image, appRoot, wrapper, request.HideJunk, request.Overlays, image.VolumeLabel ?? wrapper, cancellationToken);
+                    var mount = FuseImageMounter.Mount(image, appRoot, wrapper, request.HideJunk, request.Overlays, request.HiddenPaths, image.VolumeLabel ?? wrapper, cancellationToken);
                     return new ImageMount(mount.MountPoint, mount.SourceFolder, MountBackend.Fuse, new FuseMountHandle(mount, image));
                 }
                 catch

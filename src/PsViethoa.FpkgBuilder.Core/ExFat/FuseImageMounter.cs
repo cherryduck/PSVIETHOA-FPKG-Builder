@@ -134,6 +134,7 @@ public static class FuseImageMounter
         string? wrapperName,
         bool hideJunk,
         IReadOnlyDictionary<string, byte[]>? overlays,
+        IReadOnlyCollection<string>? hiddenPaths,
         string? volumeLabel,
         CancellationToken cancellationToken)
     {
@@ -152,7 +153,7 @@ public static class FuseImageMounter
             throw new PlatformNotSupportedException("fusermount3 was not found — FUSE mounting needs it to mount without root.");
         }
 
-        var model = new ExFatReadModel(image, appRoot, wrapperName, hideJunk, overlays, volumeLabel);
+        var model = new ExFatReadModel(image, appRoot, wrapperName, hideJunk, overlays, volumeLabel, hiddenPaths);
         var mountPoint = Path.Combine(MountRoot(), "psviethoa-fpkg-" + Environment.ProcessId + "-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(mountPoint);
 

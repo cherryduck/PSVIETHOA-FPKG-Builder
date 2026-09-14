@@ -16,7 +16,7 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` 
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
 ![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-123%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-144%20passing-22C55E)
 
 </div>
 
@@ -42,6 +42,7 @@ Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. 
 
 ## What's new in 2.1.x
 
+- **2.1.6 — Windows mounts images too**: a read‑only virtual drive (Dokan) served by the app's own exFAT reader exposes the app folder of an `.exfat` **or `.ffpfsc`** image, so the packager reads straight from the image like `hdiutil` on macOS — no 149 GB extraction, no extra disk space; junk files are hidden and the DRM fix is applied on the virtual drive. **Windows installer** (`Setup.exe`) installs the app and the bundled Dokan driver in one go; the portable zip enables the driver by itself on first launch (only the UAC prompt) — nothing to download either way. New **Components & plugins** box in the advanced options checks for real that the engine, keys, Kraken, native Oodle, mounting and the sleep guard work. Without the driver the extraction path is used as before.
 - **2.1.5 — engine from fpkg‑gui 0.6.5 + DRM fix**: `applicationDrmType` is forced to `"standard"` while building (packages built with `"free"` DRM show a lock on the PS5 and refuse to start); the source `param.json` is restored byte‑for‑byte afterwards, read‑only images are extracted instead of mounted when needed (advanced toggle, CLI `--keep-drm`). **Disk‑full recovery**: when the temp or output disk fills up the build pauses and lets you free space and retry.
 - **2.1.4 — `.ffpfsc` sources**: a PS5 PFS container holding a PFSC‑compressed exFAT dump of a game opens like an `.exfat` image (decompressed on the fly, no intermediate file; separate **.ffpfsc file** button, drag & drop, `fpkg-cli inspect / build --source x.ffpfsc`). **Check for updates**: green header badge when a newer release exists (checked at every start, ↻ button, `fpkg-cli check-update`).
 - **2.1.1 – 2.1.3**: Sony‑layout extraction (rebuildable `sce_sys`), automatic output folders, "Standard" preset naming, version badge, clear history, UI safety net.
@@ -60,7 +61,7 @@ See [CHANGELOG.md](CHANGELOG.md) for details.
 
 | Area | Details |
 |---|---|
-| **Sources** | An app folder (containing `sce_sys`) **or an exFAT disk image (`.exfat`)** — bare volume, MBR, or GPT — **or a `.ffpfsc` container** (a PS5 PFS image holding a PFSC‑compressed exFAT image; decompressed on the fly through the library, no intermediate file). A pure‑.NET exFAT reader reads `param.json` / icon / size straight from the image. On macOS the image is **mounted read‑only via `hdiutil` (no copy)**; on Windows, or when the image contains junk files, it is **extracted to the temp folder** (skipping `.DS_Store`, `._*`, `Thumbs.db`…) and cleaned up afterwards. **Or a GP5 project (`.gp5`)** from Publishing Tools / fpkg‑gui — Normal layout (`rootdir` + exclude masks) or Flat layout (explicit file list); relative paths resolve from the project's folder, the metadata card shows the layout and project root, and only the files the project lists are counted. |
+| **Sources** | An app folder (containing `sce_sys`) **or an exFAT disk image (`.exfat`)** — bare volume, MBR, or GPT — **or a `.ffpfsc` container** (a PS5 PFS image holding a PFSC‑compressed exFAT image; decompressed on the fly through the library, no intermediate file). A pure‑.NET exFAT reader reads `param.json` / icon / size straight from the image. On macOS the image is **mounted read‑only via `hdiutil` (no copy)**; on Windows it is **mounted as a read‑only virtual drive (Dokan, bundled — one‑click install)** served by the app's exFAT reader, which also works for `.ffpfsc`, hides junk files and applies the DRM fix on the drive. Without the driver, or on macOS when the image contains junk files, it is **extracted to the temp folder** (skipping `.DS_Store`, `._*`, `Thumbs.db`…) and cleaned up afterwards. **Or a GP5 project (`.gp5`)** from Publishing Tools / fpkg‑gui — Normal layout (`rootdir` + exclude masks) or Flat layout (explicit file list); relative paths resolve from the project's folder, the metadata card shows the layout and project root, and only the files the project lists are counted. |
 | **Languages** | Vietnamese / English, switch instantly in the header, choice is remembered. CLI takes `--lang vi\|en` or the `FPKG_LANG` variable. |
 | **Packaging** | FIH debug image, PLAINTEXT_NOAUTH or Native AES‑XTS, APP / Homebrew / DLC, automatic PlayGo (1–64 chunks), SDK override (1–11), passcode, deterministic builds. |
 | **Compression** | Built‑in **managed Kraken encoder** (runs everywhere, multi‑threaded) or **native Oodle** via `libScePubTools.dll` (Windows, automatic fallback to built‑in Kraken). **PFS v2** (default, broadest compatibility) or **PFS v3** (pre‑compression shuffle patterns, automatic per‑block shuffle analysis), Kraken block size 128–256 KiB, physical layout optimisation. |
@@ -113,9 +114,10 @@ Exit codes: `0` success · `1` invalid arguments · `2` build failed · `3` canc
 - Detected automatically by the `EXFAT   ` signature at the volume start, or inside an MBR/GPT partition; common offsets (sector 63, 2048…) are probed too.
 - The app folder is located up to 3 levels deep inside the image (root first, e.g. dumps with `sce_sys` at the root).
 - **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → build straight from the mount point, unmount when done. *Automatic* only mounts a clean image; if junk files are present it extracts so they can be skipped.
+- **Windows:** the app's own exFAT reader is exposed as a read‑only virtual drive through the [Dokan](https://github.com/dokan-dev/dokany) driver (`Z:\<image name>\…`), so the packager reads straight from the image — `.exfat` and `.ffpfsc` alike, junk files hidden, `param.json` DRM fix applied on the drive, nothing written to the image. The unmodified `Dokan_x64.msi` (2.3.1.1000, LGPL/MIT) ships in `app/redist/`: the **Setup.exe** installs it together with the app, the portable zip installs it by itself on first launch (only the Windows UAC prompt; declining leaves **Enable direct mounting** in the advanced options and `fpkg-cli install-dokan`). Without the driver the image is extracted to the temp folder as before.
 - **Windows / Linux:** extracted with the pure‑.NET reader (3 workers, 4 MB buffers) to `<temp>/exfat-<name>-<hash>/`, needing extra free space ≈ the data in the image; removed after the build (even on cancel).
 - **Validated:** the same image built two ways — hdiutil mount vs. pure‑.NET extraction — produces **byte‑identical** packages (same SHA‑256), i.e. the reader matches the macOS driver exactly.
-- **`.ffpfsc` containers:** a PS5 PFS image (superblock v2, 64 KiB blocks) that holds one PFSC‑compressed file — the exFAT dump of the game. The app detects it by its header (any extension) or the `.ffpfsc` extension, layers the exFAT reader on the library's PFSC decompression (~900 MB/s, no temporary image) and always **extracts** the app folder to the temp folder before building, since a container cannot be mounted. Measured: 1.2 GB container (4.29 GB exFAT, 2.9 GB of game data) → info in 0.15 s, full build in 31 s.
+- **`.ffpfsc` containers:** a PS5 PFS image (superblock v2, 64 KiB blocks) that holds one PFSC‑compressed file — the exFAT dump of the game. The app detects it by its header (any extension) or the `.ffpfsc` extension, layers the exFAT reader on the library's PFSC decompression (~900 MB/s, no temporary image); on Windows with Dokan it is **mounted** like an `.exfat` image, on macOS (where `hdiutil` cannot open a container) the app folder is **extracted** to the temp folder before building. Measured: 1.2 GB container (4.29 GB exFAT, 2.9 GB of game data) → info in 0.15 s, full build in 31 s.
 
 ## Performance
 
@@ -161,7 +163,7 @@ src/
   PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
   PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
   PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (123 tests)
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (144 tests)
 scripts/                              # publish + dev scripts
 ```
 </details>

@@ -28,13 +28,33 @@ public sealed class ParamJsonDrmSwap : IDisposable
     /// <summary>Giá trị applicationDrmType trước khi ép.</summary>
     public string PreviousValue { get; }
 
+    private static readonly JsonDocumentOptions DocumentOptions = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
+
+    private static readonly JsonSerializerOptions WriteOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
     /// <summary>Đọc applicationDrmType của một param.json (null nếu thiếu trường hoặc tệp không đọc được).</summary>
     public static string? ReadDrmType(string paramJsonPath)
     {
         try
         {
-            using var stream = File.OpenRead(paramJsonPath);
-            using var document = JsonDocument.Parse(stream, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            return ReadDrmType(File.ReadAllBytes(paramJsonPath));
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Đọc applicationDrmType từ nội dung param.json trong bộ nhớ (null nếu thiếu trường hoặc JSON hỏng).</summary>
+    public static string? ReadDrmType(ReadOnlyMemory<byte> paramJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(paramJson, DocumentOptions);
             return document.RootElement.ValueKind == JsonValueKind.Object &&
                    document.RootElement.TryGetProperty("applicationDrmType", out var value) && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
@@ -51,22 +71,35 @@ public sealed class ParamJsonDrmSwap : IDisposable
         !string.IsNullOrWhiteSpace(drmType) && !string.Equals(drmType.Trim(), StandardDrm, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Tạo bản param.json với applicationDrmType = "standard" từ nội dung gốc (dùng để đè tệp trên ổ ảo mà không đụng ảnh).
+    /// Trả về null khi không cần đổi; <paramref name="previous"/> là giá trị cũ.
+    /// </summary>
+    public static byte[]? Rewrite(byte[] original, out string? previous)
+    {
+        previous = ReadDrmType(original);
+        if (!NeedsRewrite(previous))
+        {
+            return null;
+        }
+
+        var node = JsonNode.Parse(original, documentOptions: DocumentOptions) as JsonObject ?? throw new InvalidDataException("param.json");
+        node["applicationDrmType"] = StandardDrm;
+        return JsonSerializer.SerializeToUtf8Bytes(node, WriteOptions);
+    }
+
+    /// <summary>
     /// Ghi tạm applicationDrmType = "standard" nếu cần. Trả về null khi không cần đổi; ném IOException khi tệp không ghi được
     /// (ví dụ ảnh gắn chỉ đọc) — người gọi quyết định bỏ qua hay đổi chiến lược.
     /// </summary>
     public static ParamJsonDrmSwap? Apply(string paramJsonPath, Action<LogEntry>? log)
     {
-        var current = ReadDrmType(paramJsonPath);
-        if (!NeedsRewrite(current))
+        var original = File.ReadAllBytes(paramJsonPath);
+        var rewritten = Rewrite(original, out var current);
+        if (rewritten == null)
         {
             return null;
         }
 
-        var original = File.ReadAllBytes(paramJsonPath);
-        var node = JsonNode.Parse(original, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip })
-                   as JsonObject ?? throw new InvalidDataException("param.json");
-        node["applicationDrmType"] = StandardDrm;
-        var rewritten = JsonSerializer.SerializeToUtf8Bytes(node, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
         File.WriteAllBytes(paramJsonPath, rewritten);
         log?.Invoke(new LogEntry(LogLevel.Info, Loc.F("Plan.DrmForced", current!, StandardDrm)));
         return new ParamJsonDrmSwap(paramJsonPath, original, current!);

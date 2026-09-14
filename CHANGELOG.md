@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.6 — 2026-09-14
+
+- **Windows mounts images too — no more 149 GB extraction.** A read-only virtual drive (Dokan) served by the app's own exFAT reader exposes the app folder of an `.exfat` **or `.ffpfsc`** image; the packager reads straight from the image, exactly like `hdiutil` on macOS. Junk files are hidden on the drive and the DRM fix (`applicationDrmType` → `standard`) is applied on the virtual drive, so nothing is ever written to the image and nothing needs to be extracted. The strategy combo now also appears for `.ffpfsc` sources on Windows; the disk estimate drops the extraction copy when mounting is possible.
+- **Windows installer (`…-Windows-x64-Setup.exe`, NSIS).** Installs the app and `fpkg-cli` to Program Files with Start-menu/desktop shortcuts and an uninstaller, and installs the bundled Dokan driver in the same run (silent `msiexec`, one administrator prompt) — nothing else to download or install; Vietnamese/English setup UI. The portable zip stays available and **enables the driver by itself on first launch** (unmodified `Dokan_x64.msi` 2.3.1.1000, LGPL/MIT, in `app/redist/`; only the Windows UAC prompt is shown; declining leaves "Enable direct mounting" in the advanced options). `fpkg-cli install-dokan` does the same on the command line. Installed copies update through the Setup.exe asset, portable copies through the zip.
+- **Components & plugins box** (top of the advanced options, also in `fpkg-cli info`): checks for real that the LibProsperoPkg engine, the PS5 debug keys, the built-in Kraken encoder, native Oodle (`libScePubTools.dll`), copy-free mounting (hdiutil / Dokan driver actually running) and the sleep guard work, with a green/amber/red dot per row, "Check again" and "Copy report".
+- Kraken level row: the description no longer overlaps the label.
+- Tests: 144 (virtual file system listing/reading/overlay/junk/access and component-probe tests run on every OS without the driver).
+
 ## 2.1.5 — 2026-09-14
 
 - **LibProsperoPkg from fpkg-gui 0.6.5.** Its "force the DRM mode to standard" fix is implemented in the app: while building, `applicationDrmType` in `sce_sys/param.json` is set to `"standard"` (packages built with `"free"` DRM show a lock on the PS5 and refuse to start); the source file is restored byte-for-byte afterwards, read-only exFAT images are extracted instead of mounted when they need it. Advanced toggle "Force DRM standard" (on by default), CLI `--keep-drm` to opt out.

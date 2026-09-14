@@ -96,6 +96,9 @@ public sealed class AppSettings
     /// <summary>Tự kiểm tra bản mới trên GitHub Releases khi khởi động (tối đa một lần mỗi 6 giờ).</summary>
     public bool CheckUpdatesOnStartup { get; set; } = true;
 
+    /// <summary>Đã hỏi "cài Dokan để gắn ảnh trực tiếp?" một lần rồi (Windows) — không hỏi lại.</summary>
+    public bool DokanPromptShown { get; set; }
+
     public DateTime? LastUpdateCheckUtc { get; set; }
 
 }

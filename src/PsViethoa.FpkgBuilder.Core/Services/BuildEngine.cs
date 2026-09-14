@@ -70,7 +70,7 @@ public sealed class BuildEngine
             log(new LogEntry(LogLevel.Info, Loc.F("Plan.SleepGuard", sleepGuard.Mechanism)));
         }
 
-        ExFatMount? mount = null;
+        ImageMount? mount = null;
         string? staging = null;
         try
         {
@@ -83,9 +83,17 @@ public sealed class BuildEngine
                 {
                     try
                     {
-                        mount = await Task.Run(() => ExFatMounter.Mount(source.Path, cancellationToken), cancellationToken).ConfigureAwait(false);
-                        sourceFolder = Path.Combine(mount.MountPoint, source.AppRootInImage.Replace('/', Path.DirectorySeparatorChar));
-                        log(new LogEntry(LogLevel.Info, Loc.F("Plan.Mounted", mount.MountPoint)));
+                        // Ổ ảo Dokan đè được tệp: ép DRM ngay trên ổ ảo, ảnh gốc không bị đụng. hdiutil thì DecideStrategy đã chuyển sang giải nén.
+                        var overlays = normalized.ForceStandardDrm && ImageMounter.CanOverlayFiles ? BuildDrmOverlay(source, log) : null;
+                        var mountRequest = new ImageMountRequest(HideJunk: true, overlays);
+                        mount = await Task.Run(() => ImageMounter.Mount(source, mountRequest, cancellationToken), cancellationToken).ConfigureAwait(false);
+                        sourceFolder = mount.SourceFolder;
+                        log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountedVia", mount.MountPoint, ImageMounter.BackendLabel)));
+                        if (mount.Backend == MountBackend.Dokan)
+                        {
+                            log(new LogEntry(LogLevel.Info, Loc.T("Plan.MountJunkHidden")));
+                        }
+
                         progress?.Report(tracker.UpdatePhasePercent(100));
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
@@ -217,7 +225,7 @@ public sealed class BuildEngine
         }
     }
 
-    /// <summary>Ảnh exFAT có param.json cần ép DRM không — khi gắn chỉ đọc thì không sửa được, phải giải nén.</summary>
+    /// <summary>Ảnh exFAT có param.json cần ép DRM không — khi gắn chỉ đọc (hdiutil) thì không sửa được, phải giải nén.</summary>
     private static bool ImageNeedsDrmRewrite(SourceInfo source)
     {
         try
@@ -230,44 +238,88 @@ public sealed class BuildEngine
         }
     }
 
-    /// <summary>Chọn cách xử lý ảnh exFAT: gắn (macOS, ảnh sạch) hoặc giải nén.</summary>
+    /// <summary>
+    /// Bản param.json đã ép DRM "standard" để đè lên ổ ảo (Dokan) — ảnh gốc không bị đụng. Trả về null khi không cần đổi
+    /// (thiếu tệp hoặc đã là "standard"); lỗi đọc chỉ ghi cảnh báo và không chặn việc gắn.
+    /// </summary>
+    private static IReadOnlyDictionary<string, byte[]>? BuildDrmOverlay(SourceInfo source, Action<LogEntry> log)
+    {
+        try
+        {
+            using var image = ExFatImage.Open(source.Path);
+            var appRoot = SourceLocator.ResolveAppRoot(image, source);
+            var paramJson = image.Find("sce_sys/param.json", appRoot);
+            if (paramJson == null || paramJson.IsDirectory)
+            {
+                return null;
+            }
+
+            var rewritten = ParamJsonDrmSwap.Rewrite(image.ReadAllBytes(paramJson), out var previous);
+            if (rewritten == null)
+            {
+                return null;
+            }
+
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountDrmOverlay", previous!, ParamJsonDrmSwap.StandardDrm)));
+            return new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase) { ["sce_sys/param.json"] = rewritten };
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DrmForceFailed", ex.Message)));
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Chọn cách xử lý ảnh exFAT: gắn không sao chép (hdiutil trên macOS, ổ ảo Dokan trên Windows) hoặc giải nén ra thư mục tạm.
+    /// hdiutil chỉ gắn ảnh .exfat thuần và không sửa/ẩn được gì, nên ảnh có tệp rác hoặc cần ép DRM phải giải nén; ổ ảo Dokan
+    /// ẩn tệp rác và đè param.json ngay trên ổ nên gắn được cả container .ffpfsc.
+    /// </summary>
     public static ExFatStrategy DecideStrategy(BuildRequest request, SourceInfo source, Action<LogEntry>? log)
     {
-        if (request.ForceStandardDrm && source.IsExFat && !source.IsPfsContainer && request.ExFat != ExFatStrategy.Extract && ImageNeedsDrmRewrite(source))
+        if (request.ExFat == ExFatStrategy.Extract)
         {
-            // param.json trong ảnh mang DRM khác "standard": ảnh gắn là chỉ đọc nên phải giải nén để ép DRM.
+            return ExFatStrategy.Extract;
+        }
+
+        if (!ImageMounter.CanMount(source))
+        {
+            if (source.IsPfsContainer)
+            {
+                // Container .ffpfsc: hdiutil không gắn được → giải nén trực tiếp qua lớp PFS của thư viện.
+                log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.PfsContainerExtract")));
+            }
+            else if (ImageMounter.DokanMissingOnWindows)
+            {
+                log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountNeedsDokan")));
+            }
+
+            return ExFatStrategy.Extract;
+        }
+
+        if (request.ForceStandardDrm && !ImageMounter.CanOverlayFiles && ImageNeedsDrmRewrite(source))
+        {
+            // param.json trong ảnh mang DRM khác "standard": ảnh gắn hdiutil là chỉ đọc nên phải giải nén để ép DRM.
             log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountDrm")));
             return ExFatStrategy.Extract;
         }
 
-        if (source.IsPfsContainer)
+        if (request.ExFat == ExFatStrategy.Mount)
         {
-            // Ảnh exFAT nằm trong container .ffpfsc: hdiutil không gắn được tệp này → luôn giải nén qua lớp PFS của thư viện.
-            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.PfsContainerExtract")));
-            return ExFatStrategy.Extract;
+            return ExFatStrategy.Mount;
         }
 
-        switch (request.ExFat)
+        if (!ImageMounter.CanHideJunk)
         {
-            case ExFatStrategy.Extract:
+            var junk = JunkFileFinder.Find(source.Path, CancellationToken.None);
+            if (junk.Count > 0)
+            {
+                log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountJunk")));
                 return ExFatStrategy.Extract;
-            case ExFatStrategy.Mount:
-                return ExFatMounter.IsAvailable ? ExFatStrategy.Mount : ExFatStrategy.Extract;
-            default:
-                if (!ExFatMounter.IsAvailable)
-                {
-                    return ExFatStrategy.Extract;
-                }
-
-                var junk = JunkFileFinder.Find(source.Path, CancellationToken.None);
-                if (junk.Count > 0)
-                {
-                    log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountJunk")));
-                    return ExFatStrategy.Extract;
-                }
-
-                return ExFatStrategy.Mount;
+            }
         }
+
+        return ExFatStrategy.Mount;
     }
 
     public static ProsperoBuildOptions CreateOptions(

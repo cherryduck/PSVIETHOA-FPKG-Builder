@@ -27,4 +27,10 @@
     <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ổ ảo chỉ đọc trên Windows (gắn ảnh .exfat/.ffpfsc không sao chép, như hdiutil trên macOS). Chỉ là lớp .NET;
+         driver Dokan (dokan2.dll) do người dùng cài, ứng dụng tự phát hiện và chỉ gọi khi có. -->
+    <PackageReference Include="DokanNet" Version="2.3.0.3" />
+  </ItemGroup>
+
 </Project>

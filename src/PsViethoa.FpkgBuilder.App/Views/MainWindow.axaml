@@ -438,16 +438,83 @@
                                 <StackPanel Spacing="14" IsVisible="{Binding AdvancedExpanded}" Margin="0,2,0,0">
                                     <Border Classes="divider" Margin="0" />
 
-                                    <StackPanel Classes="field" IsVisible="{Binding IsPfsContainerSource}">
+                                    <!-- Thành phần & plugin: kiểm tra thật từng thành phần có hoạt động không -->
+                                    <StackPanel Classes="field" Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Classes="label" Text="{l:T Comp.Title}" />
+                                                <TextBlock Classes="xs muted" Text="{Binding ComponentsSummary}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Classes="link" Command="{Binding CopyComponentReportCommand}" VerticalAlignment="Center" Margin="0,0,14,0" ToolTip.Tip="{l:T Comp.CopyTip}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconCopy}" />
+                                                    <TextBlock Text="{l:T Comp.Copy}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Grid.Column="2" Classes="link" Command="{Binding RefreshComponentsCommand}" IsEnabled="{Binding !IsProbingComponents}" VerticalAlignment="Center">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconRefresh}" />
+                                                    <TextBlock Text="{l:T Comp.Recheck}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Components}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ComponentRow">
+                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,3,0,3">
+                                                        <Ellipse Width="9" Height="9" Fill="{Binding Brush}" VerticalAlignment="Top" Margin="0,5,10,0" />
+                                                        <StackPanel Grid.Column="1" Spacing="1">
+                                                            <TextBlock Classes="small" Text="{Binding Name}" FontWeight="SemiBold" />
+                                                            <TextBlock Classes="xs muted" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <StackPanel Classes="field" IsVisible="{Binding ShowPfsContainerHint}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.ExFat}" />
                                         <TextBlock Classes="hint" Text="{l:T Advanced.PfsContainerHint}" />
                                     </StackPanel>
-                                    <StackPanel Classes="field" IsVisible="{Binding IsPlainExFatSource}">
+                                    <StackPanel Classes="field" IsVisible="{Binding ShowExFatStrategy}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.ExFat}" />
                                         <ComboBox Name="ExFatCombo" ItemsSource="{Binding ExFatOptions}" SelectedIndex="{Binding ExFatIndex, Mode=TwoWay}" />
-                                        <TextBlock Classes="hint" Text="{l:T Advanced.ExFatHint}" />
+                                        <TextBlock Classes="hint" Text="{Binding ExFatHintText}" />
                                         <TextBlock Classes="error" Text="{Binding ExFatError}" IsVisible="{Binding ExFatError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                     </StackPanel>
+                                    <!-- Windows chưa cài Dokan: gợi ý cài để gắn ảnh như macOS thay vì giải nén -->
+                                    <Border Classes="banner warning" IsVisible="{Binding ShowDokanHint}">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <PathIcon Classes="warning" Data="{StaticResource IconInfo}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                            <StackPanel Grid.Column="1" Spacing="8">
+                                                <TextBlock Classes="small" Text="{Binding DokanCalloutText}" TextWrapping="Wrap" />
+                                                <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="6">
+                                                    <!-- Gói kèm bộ cài: cài im lặng ngay từ ứng dụng (UAC một lần) -->
+                                                    <Button Classes="ghost" IsVisible="{Binding CanInstallDokan}" IsEnabled="{Binding !IsInstallingDokan}" Command="{Binding InstallDokanCommand}">
+                                                        <StackPanel Classes="btn">
+                                                            <PathIcon Data="{StaticResource IconShieldCheck}" />
+                                                            <TextBlock Text="{l:T Advanced.DokanInstall}" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <!-- Bản build không kèm bộ cài: mở trang tải -->
+                                                    <Button Classes="ghost" IsVisible="{Binding ShowDokanDownload}" Command="{Binding OpenDokanDownloadCommand}">
+                                                        <StackPanel Classes="btn">
+                                                            <PathIcon Data="{StaticResource IconOpenExternal}" />
+                                                            <TextBlock Text="{l:T Advanced.DokanDownload}" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Classes="link" Command="{Binding RecheckDokanCommand}" IsEnabled="{Binding !IsInstallingDokan}" VerticalAlignment="Center">
+                                                        <StackPanel Classes="btn">
+                                                            <PathIcon Data="{StaticResource IconRefresh}" />
+                                                            <TextBlock Text="{l:T Advanced.DokanRecheck}" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <TextBlock Classes="small" Text="{l:T Dokan.Installing}" IsVisible="{Binding IsInstallingDokan}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                </WrapPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
 
                                     <StackPanel Classes="field" IsVisible="{Binding IsFolderSource}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.SourceMode}" />
@@ -472,9 +539,9 @@
                                     </StackPanel>
 
                                     <StackPanel Classes="field" IsEnabled="{Binding CompressionEnabled}">
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Classes="label" Text="{l:T Advanced.Level}" />
-                                            <TextBlock Grid.Column="1" Classes="small secondary" Text="{Binding KrakenLevelText}" />
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <TextBlock Classes="label" Text="{l:T Advanced.Level}" VerticalAlignment="Top" />
+                                            <TextBlock Grid.Column="2" Classes="small secondary" Text="{Binding KrakenLevelText}" TextWrapping="Wrap" TextAlignment="Right" />
                                         </Grid>
                                         <Slider Minimum="-4" Maximum="9" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding KrakenLevel, Mode=TwoWay}" />
                                         <Grid ColumnDefinitions="*,*">

@@ -47,7 +47,37 @@ public static class UpdateChecker
         return OperatingSystem.IsWindows() ? "Windows-x64" : string.Empty;
     }
 
-    public static async Task<UpdateInfo> CheckAsync(string currentVersion, string platformAssetHint, CancellationToken cancellationToken)
+    /// <summary>
+    /// Đoạn tên tệp ưu tiên trong số các tệp khớp nền tảng: bản cài bằng Setup.exe (có Uninstall.exe cạnh ứng dụng) thì lấy
+    /// "-Setup.exe" để cập nhật cũng qua bộ cài; bản portable/macOS lấy ".zip".
+    /// </summary>
+    public static string PreferredAssetToken()
+    {
+        if (OperatingSystem.IsWindows() && IsInstalledViaSetup)
+        {
+            return "Setup";
+        }
+
+        return ".zip";
+    }
+
+    /// <summary>Ứng dụng được cài bằng bộ cài Windows (Uninstall.exe nằm cạnh tệp thực thi).</summary>
+    public static bool IsInstalledViaSetup
+    {
+        get
+        {
+            try
+            {
+                return OperatingSystem.IsWindows() && File.Exists(Path.Combine(AppContext.BaseDirectory, "Uninstall.exe"));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+    }
+
+    public static async Task<UpdateInfo> CheckAsync(string currentVersion, string platformAssetHint, CancellationToken cancellationToken, string? preferredToken = null)
     {
         string json;
         try
@@ -63,11 +93,14 @@ public static class UpdateChecker
             throw new InvalidOperationException(Loc.F("Update.Network", Loc.T("Update.Timeout")), ex);
         }
 
-        return Parse(json, currentVersion, platformAssetHint);
+        return Parse(json, currentVersion, platformAssetHint, preferredToken);
     }
 
-    /// <summary>Đọc JSON của GitHub releases/latest (tách ra để kiểm thử không cần mạng).</summary>
-    public static UpdateInfo Parse(string json, string currentVersion, string platformAssetHint)
+    /// <summary>
+    /// Đọc JSON của GitHub releases/latest (tách ra để kiểm thử không cần mạng). Trong các tệp khớp <paramref name="platformAssetHint"/>,
+    /// ưu tiên tệp chứa <paramref name="preferredToken"/> (Setup.exe hay .zip); không có thì lấy tệp khớp đầu tiên.
+    /// </summary>
+    public static UpdateInfo Parse(string json, string currentVersion, string platformAssetHint, string? preferredToken = null)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -96,10 +129,19 @@ public static class UpdateChecker
                     continue;
                 }
 
+                var preferred = !string.IsNullOrEmpty(preferredToken) && name.Contains(preferredToken, StringComparison.OrdinalIgnoreCase);
+                if (assetName != null && !preferred)
+                {
+                    continue;
+                }
+
                 assetName = name;
                 assetUrl = asset.TryGetProperty("browser_download_url", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null;
                 assetSize = asset.TryGetProperty("size", out var sz) && sz.ValueKind == JsonValueKind.Number && sz.TryGetInt64(out var value) ? value : 0;
-                break;
+                if (preferred || string.IsNullOrEmpty(preferredToken))
+                {
+                    break;
+                }
             }
         }
 

@@ -9,3 +9,6 @@ dist/
 *.swp
 publish/
 TestResults/
+
+# Bộ cài Dokan tải về khi đóng gói Windows
+/.cache/

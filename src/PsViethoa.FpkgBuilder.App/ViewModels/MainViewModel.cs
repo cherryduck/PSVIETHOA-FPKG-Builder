@@ -91,6 +91,8 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshStatusText();
         PhaseText = Loc.T(_phaseKey);
         StartupUpdateCheck();
+        StartupDokanInstall();
+        _ = RefreshComponentsAsync();
     }
 
     private void OnSourceDebounceTick(object? sender, EventArgs e)
@@ -151,7 +153,7 @@ public sealed partial class MainViewModel : ObservableObject
         IsCheckingUpdate = true;
         try
         {
-            var info = await UpdateChecker.CheckAsync(AppInfo.Version, UpdateChecker.PlatformAssetHint(), CancellationToken.None);
+            var info = await UpdateChecker.CheckAsync(AppInfo.Version, UpdateChecker.PlatformAssetHint(), CancellationToken.None, UpdateChecker.PreferredAssetToken());
             _settings.LastUpdateCheckUtc = DateTime.UtcNow;
             if (info.IsNewer)
             {
@@ -367,6 +369,8 @@ public sealed partial class MainViewModel : ObservableObject
             _syncingLanguage = false;
         }
 
+        NotifyMountCapabilities();
+        _ = RefreshComponentsAsync();
         var kind = KindIndex;
         var imageMode = ImageModeIndex;
         var backend = BackendIndex;
@@ -508,12 +512,219 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Ảnh exFAT nằm trong container .ffpfsc (chỉ giải nén được, không gắn).</summary>
     [ObservableProperty] private bool _isPfsContainerSource;
 
-    /// <summary>Ảnh .exfat thuần (có thể gắn trên macOS) — chỉ khi đó mới hiện tuỳ chọn cách xử lý ảnh.</summary>
+    /// <summary>Ảnh .exfat thuần (không phải container .ffpfsc).</summary>
     public bool IsPlainExFatSource => IsExFatSource && !IsPfsContainerSource;
 
-    partial void OnIsPfsContainerSourceChanged(bool value) => OnPropertyChanged(nameof(IsPlainExFatSource));
+    /// <summary>Hệ thống gắn được nguồn hiện tại không (hdiutil: chỉ .exfat thuần; Dokan: cả .ffpfsc).</summary>
+    public bool CanMountCurrentSource => IsExFatSource && (IsPfsContainerSource ? ImageMounter.CanMountContainers : ImageMounter.IsAvailable);
 
-    partial void OnIsExFatSourceChanged(bool value) => OnPropertyChanged(nameof(IsPlainExFatSource));
+    /// <summary>Hiện hộp chọn cách xử lý ảnh: ảnh .exfat thuần, hoặc container khi hệ thống gắn được container (Dokan).</summary>
+    public bool ShowExFatStrategy => IsExFatSource && (!IsPfsContainerSource || ImageMounter.CanMountContainers);
+
+    /// <summary>Container .ffpfsc trên hệ thống không gắn được container: chỉ giải thích là sẽ giải nén.</summary>
+    public bool ShowPfsContainerHint => IsPfsContainerSource && !ImageMounter.CanMountContainers;
+
+    /// <summary>Windows chưa cài Dokan: gợi ý cài để gắn ảnh như macOS thay vì giải nén.</summary>
+    public bool ShowDokanHint => IsExFatSource && ImageMounter.DokanMissingOnWindows;
+
+    /// <summary>Gói kèm bộ cài Dokan: cài ngay từ ứng dụng (một nút, hỏi quyền quản trị một lần).</summary>
+    public bool CanInstallDokan => ShowDokanHint && DokanInstaller.IsBundled;
+
+    /// <summary>Bản build không kèm bộ cài: chỉ còn cách tải từ trang Dokan.</summary>
+    public bool ShowDokanDownload => ShowDokanHint && !DokanInstaller.IsBundled;
+
+    public string DokanCalloutText => DokanInstaller.IsBundled
+        ? Loc.F("Advanced.DokanCalloutBundled", DokanInstaller.BundledVersion)
+        : Loc.T("Advanced.DokanCallout");
+
+    [ObservableProperty] private bool _isInstallingDokan;
+
+    /// <summary>Giải thích cách xử lý ảnh theo backend gắn có trên máy.</summary>
+    public string ExFatHintText => ImageMounter.Backend switch
+    {
+        MountBackend.Hdiutil => Loc.T("Advanced.ExFatHint.Hdiutil"),
+        MountBackend.Dokan => Loc.F("Advanced.ExFatHint.Dokan", DokanImageMounter.DriverVersion ?? "2.x"),
+        _ => Loc.T("Advanced.ExFatHint.NoMount"),
+    };
+
+    partial void OnIsPfsContainerSourceChanged(bool value) => NotifyMountCapabilities();
+
+    partial void OnIsExFatSourceChanged(bool value) => NotifyMountCapabilities();
+
+    private void NotifyMountCapabilities()
+    {
+        OnPropertyChanged(nameof(IsPlainExFatSource));
+        OnPropertyChanged(nameof(CanMountCurrentSource));
+        OnPropertyChanged(nameof(ShowExFatStrategy));
+        OnPropertyChanged(nameof(ShowPfsContainerHint));
+        OnPropertyChanged(nameof(ShowDokanHint));
+        OnPropertyChanged(nameof(CanInstallDokan));
+        OnPropertyChanged(nameof(ShowDokanDownload));
+        OnPropertyChanged(nameof(DokanCalloutText));
+        OnPropertyChanged(nameof(ExFatHintText));
+    }
+
+    /// <summary>Cài driver Dokan kèm sẵn (msiexec im lặng, Windows hỏi quyền quản trị một lần) rồi kiểm tra lại khả năng gắn ảnh.</summary>
+    [RelayCommand]
+    private async Task InstallDokanAsync()
+    {
+        if (IsInstallingDokan || !DokanInstaller.CanInstall)
+        {
+            return;
+        }
+
+        var proceed = await _dialogs.ConfirmAsync(
+            Loc.T("Dokan.ConfirmTitle"),
+            Loc.F("Dokan.ConfirmBody", DokanInstaller.BundledVersion),
+            Loc.T("Dokan.ConfirmYes"),
+            Loc.T("Common.Cancel"));
+        if (proceed)
+        {
+            await InstallDokanCoreAsync(quiet: false);
+        }
+    }
+
+    /// <summary>
+    /// Chạy bộ cài kèm theo. <paramref name="quiet"/> = lúc khởi động: thành công chỉ ghi nhật ký (UAC là tương tác duy nhất),
+    /// thất bại chỉ ghi cảnh báo và để lại nút trong tuỳ chọn nâng cao; cần khởi động lại thì luôn báo.
+    /// </summary>
+    private async Task InstallDokanCoreAsync(bool quiet)
+    {
+        IsInstallingDokan = true;
+        try
+        {
+            var result = await Task.Run(() => DokanInstaller.Install(TimeSpan.FromMinutes(10)));
+            switch (result.Outcome)
+            {
+                case DokanInstallOutcome.Installed:
+                case DokanInstallOutcome.AlreadyInstalled:
+                    var installed = Loc.F("Dokan.Installed", result.Detail ?? DokanInstaller.BundledVersion);
+                    Log(LogLevel.Info, installed);
+                    if (!quiet)
+                    {
+                        await _dialogs.ShowInfoAsync(Loc.T("Dokan.DoneTitle"), installed);
+                    }
+
+                    break;
+                case DokanInstallOutcome.RebootRequired:
+                    Log(LogLevel.Warning, Loc.T("Dokan.RebootRequired"));
+                    await _dialogs.ShowInfoAsync(Loc.T("Dokan.DoneTitle"), Loc.T("Dokan.RebootRequired"));
+                    break;
+                case DokanInstallOutcome.Cancelled:
+                    Log(LogLevel.Info, Loc.T("Dokan.CancelledLog"));
+                    break;
+                case DokanInstallOutcome.NotBundled:
+                    Log(LogLevel.Warning, Loc.T("Dokan.NotBundled"));
+                    if (!quiet)
+                    {
+                        await _dialogs.ShowErrorAsync(Loc.T("Dokan.FailedTitle"), Loc.T("Dokan.NotBundled"));
+                    }
+
+                    break;
+                default:
+                    var failed = Loc.F("Dokan.Failed", result.ExitCode, result.Detail ?? string.Empty);
+                    Log(LogLevel.Warning, failed);
+                    if (!quiet)
+                    {
+                        await _dialogs.ShowErrorAsync(Loc.T("Dokan.FailedTitle"), failed);
+                    }
+
+                    break;
+            }
+        }
+        finally
+        {
+            IsInstallingDokan = false;
+            RecheckDokan();
+        }
+    }
+
+    /// <summary>
+    /// Windows, gói kèm bộ cài, chưa có driver: bật gắn ảnh trực tiếp ngay lần mở đầu — người dùng chỉ thấy hộp UAC.
+    /// Từ chối thì không làm lại ở các lần mở sau (nút "Bật gắn ảnh trực tiếp" vẫn còn trong tuỳ chọn nâng cao).
+    /// </summary>
+    private void StartupDokanInstall()
+    {
+        if (!IsWindows || _settings.DokanPromptShown || !DokanInstaller.CanInstall)
+        {
+            return;
+        }
+
+        _settings.DokanPromptShown = true;
+        SettingsService.Save(_settings);
+        Log(LogLevel.Info, Loc.F("Dokan.AutoInstallLog", DokanInstaller.BundledVersion));
+        _ = InstallDokanCoreAsync(quiet: true);
+    }
+
+    // ===================== Thành phần & plugin =====================
+
+    public System.Collections.ObjectModel.ObservableCollection<ComponentRow> Components { get; } = new();
+
+    [ObservableProperty] private bool _isProbingComponents;
+
+    [ObservableProperty] private string _componentsSummary = string.Empty;
+
+    /// <summary>Kiểm tra thật từng thành phần (engine, khoá, Kraken, Oodle, gắn ảnh, chống ngủ) trên luồng nền rồi hiển thị.</summary>
+    [RelayCommand]
+    private async Task RefreshComponentsAsync()
+    {
+        if (IsProbingComponents)
+        {
+            return;
+        }
+
+        IsProbingComponents = true;
+        try
+        {
+            var publishingTools = PublishingToolsPath;
+            var rows = await Task.Run(() => ComponentProbe.Run(publishingTools));
+            Components.Clear();
+            foreach (var row in rows)
+            {
+                Components.Add(new ComponentRow(row));
+            }
+
+            var ready = rows.Count(r => r.State == ComponentState.Ok);
+            var relevant = rows.Count(r => r.State != ComponentState.NotApplicable);
+            ComponentsSummary = Loc.F("Comp.Summary", ready, relevant);
+        }
+        catch (Exception ex)
+        {
+            ComponentsSummary = ex.Message;
+        }
+        finally
+        {
+            IsProbingComponents = false;
+        }
+    }
+
+    /// <summary>Sao chép báo cáo thành phần (kèm phiên bản ứng dụng, hệ điều hành) để gửi khi cần hỗ trợ.</summary>
+    [RelayCommand]
+    private async Task CopyComponentReportAsync()
+    {
+        var header = $"{AppInfo.Name} {AppInfo.Version} · {AppInfo.PlatformLabel} · .NET {Environment.Version} · {Loc.F("Cli.Library", LibraryVersion)}";
+        await _dialogs.SetClipboardAsync(ComponentProbe.Report(Components.Select(c => c.Status), header));
+    }
+
+    /// <summary>Mở trang tải Dokan (Windows) — driver miễn phí để gắn ảnh như trên macOS.</summary>
+    [RelayCommand]
+    private async Task OpenDokanDownloadAsync()
+    {
+        if (!await _dialogs.OpenUriAsync(DokanImageMounter.DownloadUrl))
+        {
+            await _dialogs.ShowInfoAsync(Loc.T("Advanced.DokanDownload"), DokanImageMounter.DownloadUrl);
+        }
+    }
+
+    /// <summary>Kiểm tra lại driver Dokan sau khi cài (không cần mở lại ứng dụng).</summary>
+    [RelayCommand]
+    private void RecheckDokan()
+    {
+        NotifyMountCapabilities();
+        RefreshValidation();
+        RefreshDiskInfo();
+        _ = RefreshComponentsAsync();
+    }
     [ObservableProperty] private string _metaExFatChip = string.Empty;
     [ObservableProperty] private string _metaExFatRoot = string.Empty;
     [ObservableProperty] private bool _isGp5Source;
@@ -1468,7 +1679,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private bool WillExtractExFat =>
-        IsExFatSource && (IsPfsContainerSource || ExFatIndex == 2 || !ExFatMounter.IsAvailable || (ExFatIndex == 0 && JunkCount > 0));
+        IsExFatSource && (ExFatIndex == 2 || !CanMountCurrentSource || (ExFatIndex == 0 && JunkCount > 0 && !ImageMounter.CanHideJunk));
 
     private void RefreshDiskInfo()
     {

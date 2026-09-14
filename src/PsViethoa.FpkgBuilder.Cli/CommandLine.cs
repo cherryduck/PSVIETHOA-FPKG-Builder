@@ -137,6 +137,7 @@ internal static class CommandLine
             {
                 "build" => await BuildAsync(arguments),
                 "inspect" => Inspect(arguments),
+                "install-dokan" => InstallDokan(),
                 "verify" => Verify(arguments),
                 "clean-junk" => CleanJunk(arguments),
                 "info" => Info(),
@@ -188,7 +189,7 @@ internal static class CommandLine
         try
         {
             var current = typeof(CommandLine).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-            var info = UpdateChecker.CheckAsync(current, UpdateChecker.PlatformAssetHint(), CancellationToken.None).GetAwaiter().GetResult();
+            var info = UpdateChecker.CheckAsync(current, UpdateChecker.PlatformAssetHint(), CancellationToken.None, UpdateChecker.PreferredAssetToken()).GetAwaiter().GetResult();
             Console.WriteLine(info.IsNewer
                 ? Loc.F("Update.CliAvailable", info.LatestVersion, current, info.AssetUrl ?? info.ReleaseUrl)
                 : Loc.F("Update.UpToDate", current, info.LatestVersion));
@@ -211,7 +212,48 @@ internal static class CommandLine
         Console.WriteLine(Loc.T(BuildEngine.KeysAvailable ? "Cli.KeysReady" : "Cli.KeysMissing"));
         var backend = BuildPreparer.ResolveBackend(new BuildRequest(), out var dll);
         Console.WriteLine(Loc.F("Cli.DefaultBackend", Describe(backend) + (dll != null ? " — " + dll : string.Empty)));
+        Console.WriteLine(Loc.F("Cli.MountBackend", PsViethoa.FpkgBuilder.Core.ExFat.ImageMounter.BackendLabel));
+        if (OperatingSystem.IsWindows())
+        {
+            Console.WriteLine(Loc.F("Cli.MountBundled", PsViethoa.FpkgBuilder.Core.ExFat.DokanInstaller.BundledInstallerPath ?? Loc.T("Cli.No")));
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(ComponentProbe.Report(ComponentProbe.Run(dll), Loc.T("Cli.ComponentsHeader")));
         return 0;
+    }
+
+    /// <summary>Cài driver Dokan kèm theo (Windows) để gắn ảnh .exfat/.ffpfsc không sao chép.</summary>
+    private static int InstallDokan()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Console.Error.WriteLine(Loc.T("Cli.DokanWindowsOnly"));
+            return 1;
+        }
+
+        var result = PsViethoa.FpkgBuilder.Core.ExFat.DokanInstaller.Install(TimeSpan.FromMinutes(10));
+        switch (result.Outcome)
+        {
+            case PsViethoa.FpkgBuilder.Core.ExFat.DokanInstallOutcome.Installed:
+                Console.WriteLine(Loc.F("Cli.DokanInstalled", result.Detail ?? PsViethoa.FpkgBuilder.Core.ExFat.DokanInstaller.BundledVersion));
+                return 0;
+            case PsViethoa.FpkgBuilder.Core.ExFat.DokanInstallOutcome.AlreadyInstalled:
+                Console.WriteLine(Loc.F("Cli.DokanAlready", result.Detail ?? "?"));
+                return 0;
+            case PsViethoa.FpkgBuilder.Core.ExFat.DokanInstallOutcome.RebootRequired:
+                Console.WriteLine(Loc.T("Cli.DokanReboot"));
+                return 0;
+            case PsViethoa.FpkgBuilder.Core.ExFat.DokanInstallOutcome.Cancelled:
+                Console.WriteLine(Loc.T("Cli.DokanCancelled"));
+                return 3;
+            case PsViethoa.FpkgBuilder.Core.ExFat.DokanInstallOutcome.NotBundled:
+                Console.Error.WriteLine(Loc.T("Cli.DokanNotBundled"));
+                return 2;
+            default:
+                Console.Error.WriteLine(Loc.F("Cli.DokanFailed", result.ExitCode, result.Detail ?? string.Empty));
+                return 2;
+        }
     }
 
     private static string Describe(KrakenBackendKind backend) => Loc.T(backend switch
@@ -266,7 +308,7 @@ internal static class CommandLine
 
         var output = arguments.Get("output", "o") ?? BuildPreparer.SuggestOutputFolder(source);
         var temp = arguments.Get("temp") ?? BuildPreparer.SuggestTemporaryFolder(output);
-        var staging = metadata.IsExFat && !PsViethoa.FpkgBuilder.Core.ExFat.ExFatMounter.IsAvailable ? stats.TotalBytes : 0;
+        var staging = metadata.IsExFat && !PsViethoa.FpkgBuilder.Core.ExFat.ImageMounter.CanMountPath(source) ? stats.TotalBytes : 0;
         var disk = DiskSpaceAdvisor.Check(output, temp, stats.TotalBytes, staging);
         Console.WriteLine(Loc.F("Cli.Disk", disk.Summary) + (disk.Sufficient ? string.Empty : Loc.T("Cli.DiskLow")));
         return 0;

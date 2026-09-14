@@ -16,7 +16,7 @@ Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
 ![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-123%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-144%20passing-22C55E)
 
 </div>
 
@@ -42,6 +42,7 @@ Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng
 
 ## Có gì mới trong 2.1.x
 
+- **2.1.6 — Windows cũng gắn được ảnh**: ổ ảo chỉ đọc (Dokan) do chính bộ đọc exFAT của ứng dụng phục vụ, phơi thư mục ứng dụng trong ảnh `.exfat` **hoặc `.ffpfsc`** để engine đọc thẳng từ ảnh như `hdiutil` trên macOS — không còn giải nén 149 GB, không cần thêm dung lượng; tệp rác tự ẩn và DRM được ép ngay trên ổ ảo. **Bộ cài Windows** (`Setup.exe`) cài ứng dụng và driver Dokan kèm theo trong một lần; bản zip portable tự bật driver ngay lần mở đầu (chỉ thấy hộp UAC) — cách nào cũng không phải tải gì thêm. Ô **Thành phần & plugin** mới trong tuỳ chọn nâng cao kiểm tra thật engine, khoá, Kraken, Oodle gốc, gắn ảnh và chống ngủ máy có hoạt động không. Không có driver thì vẫn giải nén như cũ.
 - **2.1.5 — engine từ fpkg‑gui 0.6.5 + sửa DRM**: `applicationDrmType` được ép thành `"standard"` trong lúc tạo gói (gói tạo với DRM `"free"` hiện biểu tượng khoá trên PS5 và không chạy được); `param.json` nguồn được khôi phục nguyên vẹn sau đó, ảnh chỉ đọc sẽ được giải nén thay vì gắn khi cần (công tắc trong tuỳ chọn nâng cao, CLI `--keep-drm`). **Chống đầy đĩa**: khi ổ tạm hoặc ổ xuất hết chỗ, quá trình tạo gói tạm dừng để bạn giải phóng dung lượng rồi thử lại.
 - **2.1.4 — nguồn `.ffpfsc`**: container PFS PS5 chứa bản dump exFAT nén PFSC mở như ảnh `.exfat` (giải nén trực tiếp, không tạo tệp trung gian; nút **Tệp .ffpfsc** riêng, kéo thả, `fpkg-cli inspect / build --source x.ffpfsc`). **Kiểm tra cập nhật**: huy hiệu xanh ở header khi GitHub có bản mới (kiểm tra mỗi lần mở, nút ↻, `fpkg-cli check-update`).
 - **2.1.1 – 2.1.3**: trích xuất theo bố cục Sony (`sce_sys` tạo gói lại được), thư mục xuất tự đặt, preset "Tiêu chuẩn", huy hiệu phiên bản, xoá lịch sử, lưới an toàn giao diện.
@@ -60,7 +61,7 @@ Xem [CHANGELOG.md](../CHANGELOG.md) để biết chi tiết.
 
 | Nhóm | Chi tiết |
 |---|---|
-| **Nguồn** | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT (`.exfat`)** — volume thuần, MBR hay GPT — **hoặc container `.ffpfsc`** (ảnh PFS PS5 chứa bản dump exFAT nén PFSC; giải nén trực tiếp qua thư viện, không tạo tệp trung gian). Bộ đọc exFAT thuần .NET đọc `param.json` / icon / dung lượng trực tiếp từ ảnh. Trên macOS, ảnh được **gắn ở chế độ chỉ đọc bằng `hdiutil` (không sao chép)**; trên Windows, hoặc khi ảnh có tệp rác, ảnh được **giải nén ra thư mục tạm** (bỏ qua `.DS_Store`, `._*`, `Thumbs.db`…) rồi tự dọn sau khi xong. **Hoặc dự án GP5 (`.gp5`)** của Publishing Tools / fpkg‑gui — bố cục Normal (`rootdir` + mặt nạ loại trừ) hoặc Flat (liệt kê từng tệp); đường dẫn tương đối tính từ thư mục chứa dự án, thẻ thông tin hiển thị bố cục và thư mục gốc của dự án, và chỉ những tệp dự án liệt kê mới được đếm. |
+| **Nguồn** | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT (`.exfat`)** — volume thuần, MBR hay GPT — **hoặc container `.ffpfsc`** (ảnh PFS PS5 chứa bản dump exFAT nén PFSC; giải nén trực tiếp qua thư viện, không tạo tệp trung gian). Bộ đọc exFAT thuần .NET đọc `param.json` / icon / dung lượng trực tiếp từ ảnh. Trên macOS, ảnh được **gắn ở chế độ chỉ đọc bằng `hdiutil` (không sao chép)**; trên Windows, ảnh được **gắn thành ổ ảo chỉ đọc (Dokan, kèm sẵn — cài một cú bấm)** do bộ đọc exFAT của ứng dụng phục vụ, dùng được cả `.ffpfsc`, tự ẩn tệp rác và ép DRM ngay trên ổ. Không có driver, hoặc trên macOS khi ảnh có tệp rác, ảnh được **giải nén ra thư mục tạm** (bỏ qua `.DS_Store`, `._*`, `Thumbs.db`…) rồi tự dọn sau khi xong. **Hoặc dự án GP5 (`.gp5`)** của Publishing Tools / fpkg‑gui — bố cục Normal (`rootdir` + mặt nạ loại trừ) hoặc Flat (liệt kê từng tệp); đường dẫn tương đối tính từ thư mục chứa dự án, thẻ thông tin hiển thị bố cục và thư mục gốc của dự án, và chỉ những tệp dự án liệt kê mới được đếm. |
 | **Ngôn ngữ** | Tiếng Việt / English, chuyển ngay trên header, lựa chọn được ghi nhớ. CLI nhận `--lang vi\|en` hoặc biến môi trường `FPKG_LANG`. |
 | **Tạo gói** | Ảnh FIH debug, PLAINTEXT_NOAUTH hoặc Native AES‑XTS, APP / Homebrew / DLC, PlayGo tự động (1–64 khối), ghi đè SDK (1–11), passcode, bản dựng xác định (deterministic). |
 | **Nén** | **Bộ nén Kraken tích hợp** (thuần .NET, chạy trên mọi hệ điều hành, đa luồng) hoặc **Oodle gốc** qua `libScePubTools.dll` (Windows, tự chuyển về Kraken tích hợp khi không có). **PFS v2** (mặc định, tương thích rộng nhất) hoặc **PFS v3** (mẫu shuffle trước nén, tự phân tích shuffle cho từng khối), kích thước khối Kraken 128–256 KiB, tối ưu bố cục vật lý. |
@@ -113,10 +114,11 @@ Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại
 - Nhận diện tự động theo chữ ký `EXFAT   ` ở đầu volume, hoặc bên trong phân vùng MBR/GPT; các offset thông dụng (sector 63, 2048…) cũng được dò.
 - Thư mục ứng dụng được tìm tới độ sâu 3 cấp bên trong ảnh (ưu tiên gốc, ví dụ các bản dump có `sce_sys` ngay tại gốc).
 - **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → tạo gói thẳng từ điểm gắn, tháo ảnh khi xong. Chế độ *Tự động* chỉ gắn ảnh khi ảnh không có tệp rác; nếu có tệp rác thì giải nén để có thể bỏ qua chúng.
+- **Windows:** bộ đọc exFAT của ứng dụng được phơi thành ổ ảo chỉ đọc qua driver [Dokan](https://github.com/dokan-dev/dokany) (`Z:\<tên ảnh>\…`), engine đọc thẳng từ ảnh — `.exfat` lẫn `.ffpfsc`, tệp rác được ẩn, DRM trong `param.json` được ép ngay trên ổ, không ghi gì vào ảnh. Bộ cài `Dokan_x64.msi` nguyên bản (2.3.1.1000, LGPL/MIT) nằm trong `app/redist/`: **Setup.exe** cài nó cùng ứng dụng, bản zip portable tự cài ngay lần mở đầu (chỉ thấy hộp UAC của Windows; từ chối thì còn nút **Bật gắn ảnh trực tiếp** trong tuỳ chọn nâng cao và `fpkg-cli install-dokan`). Không có driver thì ảnh được giải nén ra thư mục tạm như trước.
 - **Windows / Linux:** giải nén bằng bộ đọc thuần .NET (3 luồng, bộ đệm 4 MB) ra `<temp>/exfat-<name>-<hash>/`, cần thêm dung lượng trống ≈ lượng dữ liệu trong ảnh; xoá sau khi tạo gói (kể cả khi hủy).
 - **Đã đối chứng:** cùng một ảnh tạo gói theo hai cách — gắn bằng hdiutil và giải nén bằng bộ đọc thuần .NET — cho ra gói **giống hệt nhau từng byte** (cùng SHA‑256), tức bộ đọc khớp chính xác với driver của macOS.
 
-- **Container `.ffpfsc`:** ảnh PFS PS5 (superblock v2, khối 64 KiB) chứa đúng một tệp nén PFSC là bản dump exFAT của game. Ứng dụng nhận diện qua header (bất kỳ đuôi nào) hoặc đuôi `.ffpfsc`, đặt bộ đọc exFAT lên lớp giải nén PFSC của thư viện (~900 MB/s, không tạo ảnh tạm) và luôn **trích** thư mục ứng dụng ra thư mục tạm trước khi tạo gói vì container không gắn được. Đo thực tế: container 1,2 GB (exFAT 4,29 GB, 2,9 GB dữ liệu game) → đọc thông tin 0,15 giây, tạo gói trọn vẹn 31 giây.
+- **Container `.ffpfsc`:** ảnh PFS PS5 (superblock v2, khối 64 KiB) chứa đúng một tệp nén PFSC là bản dump exFAT của game. Ứng dụng nhận diện qua header (bất kỳ đuôi nào) hoặc đuôi `.ffpfsc`, đặt bộ đọc exFAT lên lớp giải nén PFSC của thư viện (~900 MB/s, không tạo ảnh tạm) ; trên Windows có Dokan thì **gắn** như ảnh `.exfat`, còn trên macOS (hdiutil không mở được container) thì **trích** thư mục ứng dụng ra thư mục tạm trước khi tạo gói. Đo thực tế: container 1,2 GB (exFAT 4,29 GB, 2,9 GB dữ liệu game) → đọc thông tin 0,15 giây, tạo gói trọn vẹn 31 giây.
 
 ## Hiệu năng
 
@@ -161,7 +163,7 @@ src/
   PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
   PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
   PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (123 tests)
+tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (144 tests)
 scripts/                              # publish + dev scripts
 ```
 </details>

@@ -97,7 +97,7 @@ public sealed class BuildEngine
                         mount = await Task.Run(() => ImageMounter.Mount(source, mountRequest, cancellationToken), cancellationToken).ConfigureAwait(false);
                         sourceFolder = mount.SourceFolder;
                         log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountedVia", mount.MountPoint, ImageMounter.BackendLabel)));
-                        if (mount.Backend == MountBackend.Dokan)
+                        if (mount.Backend is MountBackend.Dokan or MountBackend.Fuse)
                         {
                             log(new LogEntry(LogLevel.Info, Loc.T("Plan.MountJunkHidden")));
                         }

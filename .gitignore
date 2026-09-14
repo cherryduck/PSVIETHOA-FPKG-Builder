@@ -12,3 +12,6 @@ TestResults/
 
 # Bộ cài Dokan tải về khi đóng gói Windows
 /.cache/
+
+# Kế hoạch làm việc (không commit)
+PLAN.md

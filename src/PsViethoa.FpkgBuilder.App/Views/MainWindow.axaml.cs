@@ -298,7 +298,7 @@ public partial class MainWindow : Window
 
     // ===================== Kéo–thả =====================
 
-    /// <summary>Thư mục ứng dụng, tệp ảnh .exfat, tệp dự án .gp5, hoặc tệp nằm trong thư mục ứng dụng (lấy thư mục cha).</summary>
+    /// <summary>Thư mục ứng dụng, tệp ảnh .exfat/.ffpfsc/.ffpkg, tệp dự án .gp5, hoặc tệp nằm trong thư mục ứng dụng (lấy thư mục cha).</summary>
     private static string? GetDroppedSource(DragEventArgs e)
     {
         var items = e.Data.GetFiles();
@@ -320,7 +320,7 @@ public partial class MainWindow : Window
                 return path;
             }
 
-            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path)))
+            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path) || UfsImage.IsUfsFile(path)))
             {
                 return path;
             }

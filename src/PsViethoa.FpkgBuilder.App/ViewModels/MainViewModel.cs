@@ -541,6 +541,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _metadataWarning;
     [ObservableProperty] private bool _isExFatSource;
 
+    /// <summary>Nguồn là ảnh UFS2 (.ffpkg) — luôn phải trích ra thư mục tạm vì không hệ điều hành nào gắn được UFS.</summary>
+    [ObservableProperty] private bool _isUfsSource;
+
     /// <summary>Ảnh exFAT nằm trong container .ffpfsc (chỉ giải nén được, không gắn).</summary>
     [ObservableProperty] private bool _isPfsContainerSource;
 
@@ -1418,6 +1421,23 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Nút "Tệp .ffpkg": chọn ảnh UFS2 (hệ tệp FreeBSD, thư mục gốc chính là thư mục ứng dụng).</summary>
+    [RelayCommand]
+    private async Task BrowseFfpkgAsync()
+    {
+        var current = SourcePath.Trim();
+        var initial = File.Exists(current) ? Path.GetDirectoryName(current) : Directory.Exists(current) ? current : null;
+        var file = await _dialogs.PickFileAsync(
+            Loc.T("Pick.Ffpkg"),
+            initial,
+            new FilePickerFileType(Loc.T("Pick.FfpkgFilter")) { Patterns = ["*.ffpkg"] },
+            new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] });
+        if (file != null)
+        {
+            SetSource(file);
+        }
+    }
+
     [RelayCommand]
     private async Task BrowseExFatAsync()
     {
@@ -1713,6 +1733,7 @@ public sealed partial class MainViewModel : ObservableObject
         HasParamJson = false;
         MetadataWarning = false;
         IsExFatSource = false;
+        IsUfsSource = false;
         IsPfsContainerSource = false;
         MetaExFatChip = string.Empty;
         MetaExFatRoot = string.Empty;
@@ -1750,6 +1771,7 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyAmprInfo(metadata.Ampr);
         ApplyDlcEmuInfo(metadata.DlcEmu);
         IsExFatSource = metadata.IsExFat;
+        IsUfsSource = metadata.IsUfs;
         IsPfsContainerSource = metadata.IsPfsContainer;
         var volumeLabel = string.IsNullOrWhiteSpace(metadata.VolumeLabel) ? "—" : metadata.VolumeLabel;
         MetaExFatChip = metadata.IsPfsContainer
@@ -1759,7 +1781,7 @@ public sealed partial class MainViewModel : ObservableObject
             ? (string.IsNullOrEmpty(metadata.AppRootInImage) ? Loc.T("Meta.ExFatRootTop") : Loc.F("Meta.ExFatRoot", metadata.AppRootInImage))
             : string.Empty;
         IsGp5Source = metadata.IsGp5;
-        IsFolderSource = !metadata.IsExFat && !metadata.IsGp5;
+        IsFolderSource = !metadata.IsImage && !metadata.IsGp5;
         MetaGp5Chip = metadata.IsGp5 ? Loc.F("Meta.Gp5Chip", metadata.Gp5Layout ?? "—") : string.Empty;
         MetaGp5Root = metadata.IsGp5 ? Loc.F("Meta.Gp5Root", metadata.Gp5RootFolder ?? "—") : string.Empty;
         MetaTitleId = metadata.TitleId ?? string.Empty;
@@ -1907,7 +1929,8 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private bool WillExtractExFat =>
-        IsExFatSource && (ExFatIndex == 2 || !CanMountCurrentSource || (ExFatIndex == 0 && JunkCount > 0 && !ImageMounter.CanHideJunk));
+        IsUfsSource
+        || (IsExFatSource && (ExFatIndex == 2 || !CanMountCurrentSource || (ExFatIndex == 0 && JunkCount > 0 && !ImageMounter.CanHideJunk)));
 
     private void RefreshDiskInfo()
     {

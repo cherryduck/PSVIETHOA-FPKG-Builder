@@ -57,6 +57,8 @@ public static class JunkFileFinder
         {
             case SourceKind.ExFatImage:
                 return FindInImage(sourcePath, cancellationToken);
+            case SourceKind.UfsImage:
+                return FindInUfsImage(sourcePath, cancellationToken);
             case SourceKind.Gp5Project:
                 return Array.Empty<JunkFile>();
             default:
@@ -68,6 +70,25 @@ public static class JunkFileFinder
     {
         var results = new List<JunkFile>();
         using var image = PsViethoa.FpkgBuilder.Core.ExFat.ExFatImage.Open(imagePath);
+        var root = SourceLocator.FindAppRoot(image) ?? image.Root;
+        foreach (var entry in image.Walk(root, child => !IsJunkDirectoryName(child.Name)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var junk = entry.IsDirectory ? IsJunkDirectoryName(entry.Name) : IsJunkFileName(entry.Name);
+            if (junk)
+            {
+                results.Add(new JunkFile(imagePath + "!" + entry.Path, entry.Length, entry.IsDirectory, IsReadOnly: true));
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>Tệp rác trong ảnh UFS2 (.ffpkg): chỉ liệt kê, không xoá được vì ảnh chỉ đọc.</summary>
+    private static IReadOnlyList<JunkFile> FindInUfsImage(string imagePath, CancellationToken cancellationToken)
+    {
+        var results = new List<JunkFile>();
+        using var image = PsViethoa.FpkgBuilder.Core.ExFat.UfsImage.Open(imagePath);
         var root = SourceLocator.FindAppRoot(image) ?? image.Root;
         foreach (var entry in image.Walk(root, child => !IsJunkDirectoryName(child.Name)))
         {

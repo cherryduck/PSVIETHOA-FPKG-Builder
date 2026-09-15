@@ -68,7 +68,9 @@ public sealed class BuildEngine
         var strategy = source.IsExFat
             ? await Task.Run(() => DecideStrategy(normalized, source, log), cancellationToken).ConfigureAwait(false)
             : ExFatStrategy.Auto;
-        var exFatPhase = source.IsExFat ? (strategy == ExFatStrategy.Mount ? PhaseCatalog.Mount : PhaseCatalog.Extract) : null;
+        var exFatPhase = source.IsExFat
+            ? strategy == ExFatStrategy.Mount ? PhaseCatalog.Mount : PhaseCatalog.Extract
+            : source.IsUfs ? PhaseCatalog.Extract : null;
 
         var stopwatch = Stopwatch.StartNew();
         var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase));
@@ -140,14 +142,44 @@ public sealed class BuildEngine
                     sourceFolder = staging;
                 }
             }
+            else if (source.IsUfs)
+            {
+                // Ảnh UFS2 (.ffpkg): không hệ điều hành đích nào gắn được hệ tệp này (macOS bỏ UFS từ 10.7, Windows chưa
+                // bao giờ có), nên phải trích ra thư mục tạm bằng bộ đọc riêng của công cụ.
+                progress?.Report(tracker.EnterPhase(exFatPhase!));
+                staging = Path.Combine(normalized.TemporaryFolder, "ffpkg-" + StagingName(source.Path) + "-" + Environment.ProcessId.ToString("x"));
+                TryDeleteDirectory(staging);
+                var ufsWatch = Stopwatch.StartNew();
+                var ufsPlan = await Task.Run(() =>
+                {
+                    using var image = UfsImage.Open(source.Path);
+                    var root = SourceLocator.ResolveAppRoot(image, source);
+                    var extractionPlan = UfsExtractor.CreatePlan(image, root, skipJunk: true, cancellationToken);
+                    log(new LogEntry(LogLevel.Info, Loc.F("Plan.Extracting", extractionPlan.Files.Count, Formatters.Size(extractionPlan.TotalBytes), staging)));
+                    UfsExtractor.Extract(
+                        image,
+                        extractionPlan,
+                        staging,
+                        (done, total) => progress?.Report(tracker.UpdatePhasePercent(done * 100.0 / Math.Max(1, total))),
+                        cancellationToken);
+                    return extractionPlan;
+                }, cancellationToken).ConfigureAwait(false);
+
+                var ufsSkipped = ufsPlan.SkippedJunk > 0 ? Loc.F("Plan.SkippedJunk", ufsPlan.SkippedJunk) : string.Empty;
+                log(new LogEntry(LogLevel.Info, Loc.F("Plan.Extracted", Formatters.Duration(ufsWatch.Elapsed), ufsSkipped)));
+                sourceFolder = staging;
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
             // Bỏ tệp khỏi gói (playgo*, tàn dư AMPR emu, bộ giả lập DLC khi được chọn) và sửa param.json — làm trên một thư mục
-            // gương trong thư mục tạm, KHÔNG bao giờ chạm vào thư mục nguồn, ảnh hay tệp .gp5 của người dùng. Ổ ảo khi gắn ảnh
-            // đã ẩn và đè sẵn nên không cần gương.
+            // gương trong thư mục tạm, KHÔNG bao giờ chạm vào thư mục nguồn, ảnh hay tệp .gp5 của người dùng.
+            //
+            // Gương dựng được cả trên ổ đã gắn: nó chỉ ĐỌC từ ổ rồi ghi vào thư mục tạm, nên ổ chỉ đọc như hdiutil trên macOS
+            // cũng không cản trở. Nhờ vậy ảnh .exfat trên macOS không còn phải giải nén chỉ để bỏ playgo* hay sửa param.json.
+            // Ổ ảo Dokan đã tự ẩn tệp và đè param.json khi gắn nên bỏ qua để khỏi làm hai lần.
             var mirrorRequired = false;
-            using var mirror = mount == null
+            using var mirror = mount is null or { Backend: not MountBackend.Dokan }
                 ? BuildSourceMirror(normalized, source, project, sourceFolder, log, out mirrorRequired)
                 : null;
             if (mirror != null)
@@ -318,6 +350,25 @@ public sealed class BuildEngine
         }
 
         var skip = FolderCleanupPaths(request, appFolder).ToList();
+
+        // Tệp rác hệ điều hành (.DS_Store, ._*, Thumbs.db…): bỏ qua ngay trong gương. Trước đây chỉ bộ giải nén và ổ ảo Dokan
+        // làm được việc này, nên ảnh gắn bằng hdiutil trên macOS buộc phải giải nén chỉ vì mấy tệp đó.
+        var junk = JunkFileFinder.FindInFolder(appFolder, CancellationToken.None);
+        var junkPaths = new List<string>();
+        foreach (var item in junk)
+        {
+            var relative = System.IO.Path.GetRelativePath(appFolder, item.Path).Replace('\\', '/');
+            if (!relative.StartsWith("..", StringComparison.Ordinal))
+            {
+                junkPaths.Add(relative);
+            }
+        }
+
+        skip.AddRange(junkPaths);
+        if (junkPaths.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.JunkSkipped", junkPaths.Count)));
+        }
         var replace = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var paramJson = System.IO.Path.Combine(appFolder, "sce_sys", "param.json");
         if (request.ParamPatch.Any && File.Exists(paramJson))
@@ -362,7 +413,7 @@ public sealed class BuildEngine
             log(new LogEntry(LogLevel.Info, Loc.T("Plan.MirrorForWrites")));
         }
 
-        LogCleanup(skip, Array.Empty<string>(), log);
+        LogCleanup(skip.Except(junkPaths, StringComparer.OrdinalIgnoreCase).ToList(), Array.Empty<string>(), log);
         return SourceMirror.Create(appFolder, request.TemporaryFolder, plan, log, force: true);
     }
 
@@ -518,19 +569,6 @@ public sealed class BuildEngine
         return paramJson is { IsDirectory: false } ? image.ReadAllBytes(paramJson) : null;
     }
 
-    /// <summary>Ảnh exFAT có param.json cần sửa không — khi gắn chỉ đọc (hdiutil) thì không sửa được, phải giải nén.</summary>
-    private static bool ImageNeedsParamPatch(BuildRequest request, SourceInfo source)
-    {
-        try
-        {
-            return ReadImageParamJson(source) is { } paramJson && ParamJsonPatch.NeedsRewrite(paramJson, request.ParamPatch);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
     /// <summary>
     /// Bản param.json đã sửa để đè lên ổ ảo (Dokan) — ảnh gốc không bị đụng. Trả về null khi không cần đổi (thiếu tệp hoặc
     /// mọi giá trị đã đúng); lỗi đọc chỉ ghi cảnh báo và không chặn việc gắn.
@@ -592,34 +630,9 @@ public sealed class BuildEngine
             return ExFatStrategy.Extract;
         }
 
-        if (!ImageMounter.CanOverlayFiles && ImageNeedsParamPatch(request, source))
-        {
-            // param.json trong ảnh cần sửa (DRM, versionFileUri, attribute3): ảnh gắn hdiutil là chỉ đọc nên phải giải nén.
-            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountDrm")));
-            return ExFatStrategy.Extract;
-        }
-
-        // Ổ gắn chỉ đọc (hdiutil) không ẩn được tệp: có gì phải bỏ khỏi gói thì phải giải nén mới làm được. Kiểm tra này
-        // phải đứng TRƯỚC lựa chọn "Gắn ảnh" của người dùng, nếu không gói sẽ còn nguyên playgo* mà nhật ký lại báo đã bỏ.
-        if (!ImageMounter.CanHideJunk && HasImageCleanupFiles(request, source))
-        {
-            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountCleanup")));
-            return ExFatStrategy.Extract;
-        }
-
         if (request.ExFat == ExFatStrategy.Mount)
         {
             return ExFatStrategy.Mount;
-        }
-
-        if (!ImageMounter.CanHideJunk)
-        {
-            var junk = JunkFileFinder.Find(source.Path, CancellationToken.None);
-            if (junk.Count > 0)
-            {
-                log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Plan.MountJunk")));
-                return ExFatStrategy.Extract;
-            }
         }
 
         return ExFatStrategy.Mount;

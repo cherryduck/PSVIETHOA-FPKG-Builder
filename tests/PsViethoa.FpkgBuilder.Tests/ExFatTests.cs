@@ -299,6 +299,44 @@ public sealed class ExFatTests : IDisposable
         Assert.Contains(log, e => e.Message.Contains("/Volumes/", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// macOS gắn ảnh .exfat bằng hdiutil, ổ đó chỉ đọc nên không ẩn được tệp. Thư mục gương chỉ ĐỌC từ ổ rồi ghi thay đổi
+    /// vào thư mục tạm, nên vẫn bỏ được tệp và sửa được param.json mà KHÔNG phải giải nén cả ảnh.
+    /// </summary>
+    [Fact]
+    public async Task Engine_MountsAndStillPatchesWithoutExtracting()
+    {
+        if (!BuildEngine.KeysAvailable || !ExFatMounter.IsAvailable)
+        {
+            return;
+        }
+
+        var request = new BuildRequest
+        {
+            SourcePath = Fixture("small-mbr.exfat"),
+            OutputFolder = Path.Combine(_root, "out-mount-patch"),
+            TemporaryFolder = Path.Combine(_root, "tmp-mount-patch"),
+            ContentId = "UP9000-PPSA00002_00-PSVIETHOAEXFAT02",
+            ExFat = ExFatStrategy.Auto,
+            KrakenBackend = KrakenBackendKind.BuiltIn,
+            KrakenLevel = 2,
+            PreventSleep = false,
+
+            // Đúng những tuỳ chọn trước đây ép phải giải nén trên macOS.
+            ForceStandardDrm = true,
+            ClearVersionFileUri = true,
+            ClearPlayGoAttributes = true,
+            RemovePlayGoFiles = true,
+        };
+
+        var log = new List<LogEntry>();
+        var outcome = await new BuildEngine().BuildAsync(request, log.Add, null, CancellationToken.None);
+
+        Assert.True(File.Exists(outcome.OutputPath));
+        Assert.Contains(log, e => e.Message.Contains("/Volumes/", StringComparison.Ordinal));
+        Assert.Empty(Directory.GetDirectories(request.TemporaryFolder, "exfat-*"));
+    }
+
     [Fact]
     public void RealSample_WhenPresent_IsRecognised()
     {

@@ -242,6 +242,21 @@ public static class BuildPreparer
                 }
 
                 break;
+            case SourceKind.UfsImage:
+                try
+                {
+                    SourceLocator.Resolve(normalized.SourcePath);
+                }
+                catch (InvalidDataException ex)
+                {
+                    errors.Add(new ValidationError(FieldSource, ex.Message));
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new ValidationError(FieldSource, Loc.T("Val.ExFatInvalid") + " " + ex.Message));
+                }
+
+                break;
             case SourceKind.Gp5Project:
                 try
                 {

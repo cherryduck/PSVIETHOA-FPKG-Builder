@@ -189,32 +189,39 @@
                                     <StackPanel Spacing="8">
                                         <TextBox Name="SourceBox" Text="{Binding SourcePath, Mode=TwoWay}" Classes.error="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}"
                                                  Watermark="{l:T Step1.SourceWatermark}" ToolTip.Tip="{Binding SourcePath}" />
-                                        <Grid ColumnDefinitions="*,8,*,8,*,8,*">
-                                            <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseSourceCommand}" ToolTip.Tip="{l:T Pick.Source}">
+                                        <!-- Tự xuống dòng khi cửa sổ hẹp: năm nút chia đều một hàng sẽ cắt cụt nhãn. -->
+                                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                            <Button HorizontalContentAlignment="Center" Command="{Binding BrowseSourceCommand}" ToolTip.Tip="{l:T Pick.Source}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconFolderOpen}" />
                                                     <TextBlock Text="{l:T Common.Browse}" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button Grid.Column="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseExFatCommand}" ToolTip.Tip="{l:T Step1.PickExFatTip}">
+                                            <Button HorizontalContentAlignment="Center" Command="{Binding BrowseExFatCommand}" ToolTip.Tip="{l:T Step1.PickExFatTip}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconDisk}" />
                                                     <TextBlock Text="{l:T Step1.PickExFat}" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button Grid.Column="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseFfpfscCommand}" ToolTip.Tip="{l:T Step1.PickFfpfscTip}">
+                                            <Button HorizontalContentAlignment="Center" Command="{Binding BrowseFfpfscCommand}" ToolTip.Tip="{l:T Step1.PickFfpfscTip}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconArchive}" />
                                                     <TextBlock Text="{l:T Step1.PickFfpfsc}" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button Grid.Column="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding BrowseGp5Command}" ToolTip.Tip="{l:T Step1.PickGp5Tip}">
+                                            <Button HorizontalContentAlignment="Center" Command="{Binding BrowseFfpkgCommand}" ToolTip.Tip="{l:T Step1.PickFfpkgTip}">
+                                                <StackPanel Classes="btn">
+                                                    <PathIcon Data="{StaticResource IconPackage}" />
+                                                    <TextBlock Text="{l:T Step1.PickFfpkg}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button HorizontalContentAlignment="Center" Command="{Binding BrowseGp5Command}" ToolTip.Tip="{l:T Step1.PickGp5Tip}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconFile}" />
                                                     <TextBlock Text="{l:T Step1.PickGp5}" />
                                                 </StackPanel>
                                             </Button>
-                                        </Grid>
+                                        </WrapPanel>
                                     </StackPanel>
                                     <TextBlock Classes="error" Text="{Binding SourceError}" IsVisible="{Binding SourceError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                     <WrapPanel IsVisible="{Binding HasRecent}" Margin="0,6,0,0">

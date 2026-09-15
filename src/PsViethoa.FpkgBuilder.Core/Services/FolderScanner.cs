@@ -39,6 +39,8 @@ public static class FolderScanner
         {
             case SourceKind.ExFatImage:
                 return ScanImage(sourcePath, cancellationToken);
+            case SourceKind.UfsImage:
+                return ScanUfsImage(sourcePath, cancellationToken);
             case SourceKind.Gp5Project:
                 return ScanGp5(sourcePath, cancellationToken);
             default:
@@ -76,6 +78,31 @@ public static class FolderScanner
         var stopwatch = Stopwatch.StartNew();
         long files = 0, directories = 0, bytes = 0, largest = 0;
         using var image = PsViethoa.FpkgBuilder.Core.ExFat.ExFatImage.Open(imagePath);
+        var root = SourceLocator.FindAppRoot(image) ?? image.Root;
+        foreach (var entry in image.Walk(root))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.IsDirectory)
+            {
+                directories++;
+            }
+            else
+            {
+                files++;
+                bytes += entry.Length;
+                largest = Math.Max(largest, entry.Length);
+            }
+        }
+
+        return new FolderStats(files, directories, bytes, largest, stopwatch.Elapsed);
+    }
+
+    /// <summary>Thống kê ảnh UFS2 (.ffpkg) — đọc thẳng từ ảnh, không giải nén.</summary>
+    private static FolderStats ScanUfsImage(string imagePath, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        long files = 0, directories = 0, bytes = 0, largest = 0;
+        using var image = PsViethoa.FpkgBuilder.Core.ExFat.UfsImage.Open(imagePath);
         var root = SourceLocator.FindAppRoot(image) ?? image.Root;
         foreach (var entry in image.Walk(root))
         {

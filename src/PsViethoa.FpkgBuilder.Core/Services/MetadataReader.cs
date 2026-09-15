@@ -16,6 +16,7 @@ public static class MetadataReader
         return SourceLocator.Detect(sourcePath) switch
         {
             SourceKind.ExFatImage => ReadImage(sourcePath, cancellationToken),
+            SourceKind.UfsImage => ReadUfsImage(sourcePath, cancellationToken),
             SourceKind.Gp5Project => ReadGp5(sourcePath, cancellationToken),
             _ => ReadFolder(sourcePath, cancellationToken),
         };
@@ -114,6 +115,67 @@ public static class MetadataReader
         metadata.HasPlayGoScenario = system.ContainsKey("playgo-scenario.json");
         metadata.Ampr = AmprInspector.ScanImage(image, appRoot, cancellationToken);
         metadata.DlcEmu = DlcEmuInspector.ScanImage(image, appRoot, cancellationToken);
+        return metadata;
+    }
+
+    /// <summary>Nguồn là ảnh UFS2 (.ffpkg): đọc thẳng từ ảnh, không giải nén gì cả.</summary>
+    private static SourceMetadata ReadUfsImage(string imagePath, CancellationToken cancellationToken)
+    {
+        var metadata = new SourceMetadata { IsUfs = true };
+        using var image = UfsImage.Open(imagePath);
+
+        var appRoot = SourceLocator.FindAppRoot(image);
+        if (appRoot == null)
+        {
+            metadata.HasSceSys = false;
+            return metadata;
+        }
+
+        metadata.AppRootInImage = appRoot.Path.TrimStart('/');
+        var children = image.Enumerate(appRoot).ToDictionary(e => e.Name, e => e, StringComparer.OrdinalIgnoreCase);
+        metadata.HasEboot = children.TryGetValue("eboot.bin", out var eboot) && !eboot.IsDirectory;
+        if (!children.TryGetValue("sce_sys", out var sceSys) || !sceSys.IsDirectory)
+        {
+            metadata.HasSceSys = false;
+            return metadata;
+        }
+
+        metadata.HasSceSys = true;
+        var system = image.Enumerate(sceSys).Where(e => !e.IsDirectory).ToDictionary(e => e.Name, e => e, StringComparer.OrdinalIgnoreCase);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (system.TryGetValue("param.json", out var param) && param.Length <= MaxParamJsonBytes)
+        {
+            metadata.HasParamJson = true;
+            metadata.ParamJsonPath = imagePath + "!/" + param.Path.TrimStart('/');
+            try
+            {
+                using var stream = image.OpenRead(param);
+                ReadParamJson(stream, metadata);
+            }
+            catch (JsonException ex)
+            {
+                metadata.HasParamJson = false;
+                metadata.ParamJsonError = "param.json: " + ex.Message;
+            }
+        }
+
+        if (system.TryGetValue("icon0.png", out var icon) && icon.Length > 0 && icon.Length <= MaxIconBytes)
+        {
+            try
+            {
+                metadata.IconBytes = image.ReadAllBytes(icon, MaxIconBytes);
+            }
+            catch (Exception)
+            {
+                metadata.IconBytes = null;
+            }
+        }
+
+        metadata.HasPlayGoChunk = system.ContainsKey("playgo-chunk.dat");
+        metadata.HasPlayGoHashTable = system.ContainsKey("playgo-hash-table.dat");
+        metadata.HasPlayGoFicm = system.ContainsKey("playgo-ficm.dat");
+        metadata.HasPlayGoScenario = system.ContainsKey("playgo-scenario.json");
         return metadata;
     }
 

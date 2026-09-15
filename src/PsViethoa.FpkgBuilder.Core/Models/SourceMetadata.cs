@@ -8,6 +8,12 @@ public sealed class SourceMetadata
     /// <summary>Nguồn là ảnh exFAT (không phải thư mục).</summary>
     public bool IsExFat { get; set; }
 
+    /// <summary>Nguồn là ảnh UFS2 (.ffpkg).</summary>
+    public bool IsUfs { get; set; }
+
+    /// <summary>Nguồn là một tệp ảnh (exFAT, container .ffpfsc hoặc UFS2).</summary>
+    public bool IsImage => IsExFat || IsUfs;
+
     public string? VolumeLabel { get; set; }
 
     /// <summary>Ảnh exFAT nằm trong container PFS (.ffpfsc).</summary>

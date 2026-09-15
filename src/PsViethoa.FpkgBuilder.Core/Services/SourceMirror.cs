@@ -79,7 +79,7 @@ public sealed class SourceMirror : IDisposable
                 if (!File.Exists(target))
                 {
                     Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
-                    File.Copy(file, target);
+                    CopyBytes(file, target);
                 }
             }
 
@@ -91,7 +91,7 @@ public sealed class SourceMirror : IDisposable
             // Bắt mọi loại: Process.Start ném Win32Exception, ổ mạng ném đủ thứ khác. Dựng gương hỏng thì phải dọn sạch và
             // báo về, để người gọi dừng hẳn thay vì lặng lẽ đóng gói nguồn thô.
             mirror.Dispose();
-            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.MirrorFailed", ex.Message)));
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.MirrorFailed", ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? string.Empty).Split('\n')[0].Trim())));
             return null;
         }
     }
@@ -112,6 +112,8 @@ public sealed class SourceMirror : IDisposable
         Directory.CreateDirectory(target);
         foreach (var entry in Directory.EnumerateFileSystemEntries(source))
         {
+            try
+            {
             var name = System.IO.Path.GetFileName(entry);
             var relative = prefix.Length == 0 ? name : prefix + "/" + name;
             if (skip.Contains(relative))
@@ -147,16 +149,22 @@ public sealed class SourceMirror : IDisposable
             }
             else if (add.TryGetValue(relative, out var file))
             {
-                File.Copy(file, destination);
+                CopyBytes(file, destination);
             }
             else if (InCopiedFolder(relative, copy))
             {
                 // Bản sao thật, không phải liên kết cứng: thư viện ghi đè trong gương cũng không đụng tới tệp nguồn.
-                File.Copy(entry, destination);
+                CopyBytes(entry, destination);
             }
             else
             {
                 Link(entry, destination, directory: false);
+            }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Nêu rõ tệp nào hỏng: thông báo trần như "Attribute not found" không cho biết phải sửa ở đâu.
+                throw new IOException(entry + ": " + ex.Message, ex);
             }
         }
     }
@@ -200,7 +208,7 @@ public sealed class SourceMirror : IDisposable
         {
             if (!TryCreateHardLink(source, destination))
             {
-                File.Copy(source, destination);
+                CopyBytes(source, destination);
             }
 
             return;
@@ -238,6 +246,17 @@ public sealed class SourceMirror : IDisposable
         {
             throw new IOException("mklink /J failed for " + destination);
         }
+    }
+
+    /// <summary>
+    /// Chép nội dung tệp, KHÔNG chép thuộc tính mở rộng. File.Copy trên macOS gọi copyfile() kèm metadata và ném
+    /// "Attribute not found" khi nguồn nằm trên ổ exFAT vừa gắn bằng hdiutil.
+    /// </summary>
+    private static void CopyBytes(string source, string destination)
+    {
+        using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, FileOptions.SequentialScan);
+        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20, FileOptions.SequentialScan);
+        input.CopyTo(output, 1 << 20);
     }
 
     private static bool TryCreateHardLink(string source, string destination)

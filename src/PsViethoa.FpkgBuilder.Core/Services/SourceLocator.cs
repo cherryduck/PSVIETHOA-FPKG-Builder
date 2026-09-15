@@ -7,6 +7,9 @@ public enum SourceKind
     None,
     Folder,
     ExFatImage,
+
+    /// <summary>Ảnh UFS2 (.ffpkg) — hệ tệp FreeBSD mà thư mục gốc chính là thư mục ứng dụng.</summary>
+    UfsImage,
     Gp5Project,
 }
 
@@ -15,7 +18,16 @@ public sealed record SourceInfo(SourceKind Kind, string Path, string AppRootInIm
 {
     public bool IsExFat => Kind == SourceKind.ExFatImage;
 
-    /// <summary>Ảnh exFAT nằm trong container .ffpfsc: chỉ giải nén được, không gắn (mount) được.</summary>
+    /// <summary>Ảnh UFS2 (.ffpkg).</summary>
+    public bool IsUfs => Kind == SourceKind.UfsImage;
+
+    /// <summary>Nguồn là một tệp ảnh (exFAT, container .ffpfsc hoặc UFS2).</summary>
+    public bool IsImage => IsExFat || IsUfs;
+
+    /// <summary>
+    /// Ảnh exFAT nằm trong container .ffpfsc: chỉ giải nén được, không gắn (mount) được. Ảnh UFS2 cũng vậy — cả macOS lẫn
+    /// Windows đều không có driver UFS, nên phải đọc bằng bộ đọc riêng.
+    /// </summary>
     public bool CanMount => IsExFat && !IsPfsContainer;
 
     public bool IsGp5 => Kind == SourceKind.Gp5Project;
@@ -55,6 +67,11 @@ public static class SourceLocator
             return SourceKind.Gp5Project;
         }
 
+        if (HasUfsExtension(path) || UfsImage.IsUfsFile(path))
+        {
+            return SourceKind.UfsImage;
+        }
+
         if (HasExFatExtension(path) || HasPfsContainerExtension(path) || ExFatImage.IsExFatFile(path))
         {
             return SourceKind.ExFatImage;
@@ -70,8 +87,12 @@ public static class SourceLocator
     public static bool HasPfsContainerExtension(string path) =>
         string.Equals(Path.GetExtension(path), PfsContainer.Extension, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Tệp ảnh (.exfat hoặc .ffpfsc) theo đuôi, không cần mở tệp.</summary>
-    public static bool HasImageExtension(string path) => HasExFatExtension(path) || HasPfsContainerExtension(path);
+    /// <summary>Đuôi .ffpkg — ảnh UFS2 của FreeBSD.</summary>
+    public static bool HasUfsExtension(string path) => UfsImage.HasExtension(path);
+
+    /// <summary>Tệp ảnh (.exfat, .ffpfsc hoặc .ffpkg) theo đuôi, không cần mở tệp.</summary>
+    public static bool HasImageExtension(string path) =>
+        HasExFatExtension(path) || HasPfsContainerExtension(path) || HasUfsExtension(path);
 
     public static bool HasGp5Extension(string path) =>
         string.Equals(Path.GetExtension(path), Gp5Extension, StringComparison.OrdinalIgnoreCase);
@@ -94,10 +115,47 @@ public static class SourceLocator
                 var appRoot = FindAppRoot(image) ?? throw new InvalidDataException(Localization.Loc.T("Val.ExFatNoApp"));
                 return new SourceInfo(SourceKind.ExFatImage, Path.GetFullPath(path), appRoot.Path.TrimStart('/'), image.VolumeLabel, image.IsPfsContainer);
             }
+
+            case SourceKind.UfsImage:
+            {
+                using var image = UfsImage.Open(path);
+                var appRoot = FindAppRoot(image) ?? throw new InvalidDataException(Localization.Loc.T("Val.ExFatNoApp"));
+                return new SourceInfo(SourceKind.UfsImage, Path.GetFullPath(path), appRoot.Path.TrimStart('/'), null);
+            }
             default:
                 throw new FileNotFoundException(Localization.Loc.T("Val.SourceMissing"), path);
         }
     }
+
+    /// <summary>Tìm thư mục ứng dụng trong ảnh UFS2: giống ảnh exFAT, ưu tiên gốc rồi tìm dần theo chiều sâu.</summary>
+    public static UfsEntry? FindAppRoot(UfsImage image)
+    {
+        var level = new List<UfsEntry> { image.Root };
+        for (var depth = 0; depth <= MaxImageSearchDepth && level.Count > 0; depth++)
+        {
+            var next = new List<UfsEntry>();
+            foreach (var directory in level)
+            {
+                var children = image.Enumerate(directory).ToList();
+                if (children.Any(c => c.IsDirectory && c.Name.Equals("sce_sys", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return directory;
+                }
+
+                next.AddRange(children.Where(c => c.IsDirectory && !JunkFileFinder.IsJunkDirectoryName(c.Name)));
+            }
+
+            level = next;
+        }
+
+        return null;
+    }
+
+    /// <summary>Thư mục ứng dụng của một ảnh UFS2 đã phân giải.</summary>
+    public static UfsEntry ResolveAppRoot(UfsImage image, SourceInfo source) =>
+        source.AppRootInImage.Length == 0
+            ? image.Root
+            : image.Find(source.AppRootInImage) ?? throw new InvalidDataException(Localization.Loc.T("Val.ExFatNoApp"));
 
     /// <summary>Tìm thư mục ứng dụng trong ảnh: ưu tiên gốc, rồi tìm dần theo chiều sâu (bỏ qua thư mục rác).</summary>
     public static ExFatEntry? FindAppRoot(ExFatImage image)
